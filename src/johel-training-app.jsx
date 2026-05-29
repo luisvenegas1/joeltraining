@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback, useRef } from "react";
 
 // ══ CONSTANTS ══
 
+const CHART_COLORS=["#1A5DC8","#E53935","#2E7D32","#F57C00","#7B1FA2","#00695C","#F9A825","#0288D1","#AD1457","#558B2F"];
+
 const PLAN_TYPES = ["Base","Elite","Activación","Transformación","Especial"];
 const PLAN_MODALITIES = ["Virtual","En Estudio","En Visita"];
 const PLAN_FORMATS = ["Individual","Pareja","Trío","Grupo"];
@@ -145,7 +147,17 @@ function calcAge(dob){
 function fmtDate(d){if(!d)return"—";try{return new Date(d+"T12:00:00").toLocaleDateString("es-CR",{day:"2-digit",month:"short",year:"numeric"})}catch{return d}}
 function initials(name){return(name||"").split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase()}
 function planColor(type){return{Base:"bd-gray",Elite:"bd-purple",Activación:"bd-blue",Transformación:"bd-orange",Especial:"bd-teal"}[type]||"bd-gray"}
-function getPlanStatus(endDate){
+function getPlanStatus(plan){
+  if(!plan)return"Sin plan";
+  if(plan.paused)return"Pausado";
+  const endDate=plan.endDate;
+  if(!endDate)return"Sin plan";
+  const d=Math.ceil((new Date(endDate+"T23:59:59")-new Date())/(1000*60*60*24));
+  if(d<0)return"Vencido";
+  if(d===0)return"Vence hoy";
+  return"Activo";
+}
+function getPlanStatusFromEndDate(endDate){
   if(!endDate)return"Sin plan";
   const d=Math.ceil((new Date(endDate+"T23:59:59")-new Date())/(1000*60*60*24));
   if(d<0)return"Vencido";
@@ -165,8 +177,9 @@ function addMonths(dateStr,months){
 const STYLES=`
 @import url('https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;900&family=Barlow+Condensed:wght@600;700;900&display=swap');
 *{box-sizing:border-box;margin:0;padding:0}
-html,body{height:100%;font-family:'Barlow',sans-serif;background:#F5F7FC;color:#0D1B3E;-webkit-tap-highlight-color:transparent}
-.app{display:flex;min-height:100vh;min-height:100dvh}
+html,body{height:100%;font-family:'Barlow',sans-serif;background:#F5F7FC;color:#0D1B3E;-webkit-tap-highlight-color:transparent;overscroll-behavior:none}
+html{background:#F5F7FC}
+.app{display:flex;min-height:100vh;min-height:100dvh;background:#F5F7FC}
 /* SIDEBAR */
 .sidebar{width:210px;min-width:210px;background:#0B1F4B;display:flex;flex-direction:column;position:fixed;top:0;left:0;height:100vh;height:100dvh;overflow-y:auto;z-index:200;transition:transform 0.2s}
 .main{flex:1;margin-left:210px;padding:20px;overflow-y:auto;min-width:0;max-width:100%}
@@ -307,14 +320,19 @@ label{font-size:11px;font-weight:700;color:#6B7A99;display:block;margin-bottom:4
 .avatar-big{width:70px;height:70px;border-radius:50%;background:#3A8EF6;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:800;color:#fff;overflow:hidden;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.15)}
 .avatar-big img{width:100%;height:100%;object-fit:cover}
 .avatar-edit{position:absolute;bottom:0;right:0;background:#1A5DC8;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:12px;border:2px solid #fff}
-.pay-row{border:1.5px solid #DDE4F0;border-radius:10px;padding:12px;margin-bottom:8px;cursor:pointer;transition:border-color 0.15s}
-.pay-row:hover{border-color:#1A5DC8}
+.mob-logout{display:none;align-items:center;justify-content:center;flex-direction:column;gap:2px;padding:6px 8px;cursor:pointer;color:rgba(255,255,255,0.55);font-size:9px;min-width:52px;border:none;background:none;font-family:'Barlow',sans-serif}
+.mob-logout:active{background:rgba(229,57,53,0.2);color:#FF5252}
+.mob-logout .nav-icon{font-size:20px;width:auto}
+.footer-tm{text-align:center;padding:12px 16px 4px;font-size:10px;color:rgba(255,255,255,0.28);letter-spacing:0.5px;border-top:1px solid rgba(255,255,255,0.08);margin-top:auto}
+.main-footer{text-align:center;padding:20px 16px 10px;font-size:10px;color:#6B7A99;letter-spacing:0.3px;border-top:1px solid #DDE4F0;margin-top:24px}
+.tbl td.td-actions{white-space:nowrap;display:flex;align-items:center;gap:2px}
 .pay-row.selected{border-color:#1A5DC8;background:#EFF6FF}
 .pay-hist{border-bottom:1px solid #DDE4F0;padding:8px 0;display:flex;align-items:center;gap:8px;font-size:12px}
 /* MOBILE */
 @media(max-width:640px){
   .sidebar{width:100%;height:auto;position:fixed;bottom:0;top:auto;left:0;right:0;flex-direction:row;height:60px;border-top:1px solid rgba(255,255,255,0.1);padding:0;overflow:visible;z-index:300}
   .sb-logo,.nav-sec,.sb-footer{display:none}
+  .mob-logout{display:flex}
   .sidebar nav{display:flex;flex:1;height:100%}
   .nav-item{flex-direction:column;gap:2px;padding:6px 4px;margin:0;border-radius:0;font-size:9px;flex:1;justify-content:center;color:rgba(255,255,255,0.55)}
   .nav-item.active{background:rgba(26,93,200,0.3);color:#4FC3F7}
@@ -359,12 +377,12 @@ function LoginPage({onLogin,trainer,users}){
   const[u,setU]=useState("");const[p,setP]=useState("");const[err,setErr]=useState("");
   function go(e){
     e.preventDefault();
-    if(u===trainer.username&&p===trainer.password){onLogin(trainer);return}
+    if(u.toLowerCase()===trainer.username.toLowerCase()&&p===trainer.password){onLogin(trainer);return}
     // check admins stored
     const admins=(JSON.parse(localStorage.getItem("jh_admins_v3")||"[]"));
-    const adm=admins.find(a=>a.username===u&&a.password===p);
+    const adm=admins.find(a=>a.username.toLowerCase()===u.toLowerCase()&&a.password===p);
     if(adm){onLogin({...adm,role:"trainer"});return}
-    const user=users.find(x=>x.username===u&&x.password===p);
+    const user=users.find(x=>x.username.toLowerCase()===u.toLowerCase()&&x.password===p);
     if(user){onLogin(user);return}
     setErr("Usuario o contraseña incorrectos");
   }
@@ -394,12 +412,18 @@ function Sidebar({user,page,setPage,onLogout}){
         {isT&&<div className="nav-sec">Menú</div>}
         {navs.map(n=>(<div key={n.id} className={`nav-item${page===n.id?" active":""}`} onClick={()=>setPage(n.id)}><span className="nav-icon">{n.icon}</span><span>{n.label}</span></div>))}
       </nav>
+      {/* Mobile logout button - visible only on mobile */}
+      <button className="mob-logout" onClick={onLogout} title="Cerrar sesión">
+        <span className="nav-icon">⎋</span>
+        <span>Salir</span>
+      </button>
       <div className="sb-footer">
         <div className="u-chip">
           <div className="u-av">{photo?<img src={photo} alt=""/>:ini}</div>
           <div style={{flex:1,minWidth:0}}><div className="u-nm">{user.name.split(" ")[0]}</div><div className="u-rl">{isT?"Entrenador":"Cliente"}</div></div>
           <button className="lbtn" onClick={onLogout} title="Salir">⎋</button>
         </div>
+        <div className="footer-tm">© {new Date().getFullYear()} Johel Herrera<br/>Strength · Discipline · Evolution</div>
       </div>
     </aside>
   );
@@ -423,9 +447,9 @@ function StretchPicker({exercises,selected,onToggle,onClose}){
 // ── DASHBOARD ──
 function Dashboard({users,routines}){
   const total=users.length;
-  const active=users.filter(u=>getPlanStatus(u.plan?.endDate)==="Activo").length;
+  const active=users.filter(u=>getPlanStatus(u.plan)==="Activo").length;
   const expiring=users.filter(u=>{const d=daysLeft(u.plan?.endDate);return d!==null&&d>=0&&d<=30}).length;
-  const expired=users.filter(u=>getPlanStatus(u.plan?.endDate)==="Vencido").length;
+  const expired=users.filter(u=>getPlanStatus(u.plan)==="Vencido").length;
   return(<div>
     <div className="ph"><div><div className="pt">Dashboard</div><div className="ps">Panel de control</div></div></div>
     <div className="stats">
@@ -438,7 +462,7 @@ function Dashboard({users,routines}){
       <table className="tbl">
         <thead><tr><th>Cliente</th><th>Plan</th><th>Modalidad</th><th>Vence</th><th>Estado</th></tr></thead>
         <tbody>{users.map(u=>{
-          const st=getPlanStatus(u.plan?.endDate);
+          const st=getPlanStatus(u.plan);
           const d=daysLeft(u.plan?.endDate);
           return(<tr key={u.id}>
             <td><strong>{u.name}</strong><br/><span style={{color:"#6B7A99",fontSize:10}}>@{u.username}</span></td>
@@ -506,7 +530,7 @@ function PaymentModule({client,setClient}){
 
   function registerPayment(){
     const currentEnd=client.plan?.endDate;
-    const base=(currentEnd&&getPlanStatus(currentEnd)==="Activo")?currentEnd:payDate;
+    const base=(currentEnd&&getPlanStatusFromEndDate(currentEnd)==="Activo")?currentEnd:payDate;
     const newEnd=addMonths(base,period);
     const pay={id:genId(),date:payDate,months:period,amount,notes,endDate:newEnd};
     const newPlan={...client.plan,endDate:newEnd,startDate:client.plan?.startDate||payDate};
@@ -514,14 +538,15 @@ function PaymentModule({client,setClient}){
     setShowPay(false);setNotes("");
   }
 
-  const st=getPlanStatus(client.plan?.endDate);
+  const st=getPlanStatus(client.plan);
   const dl=daysLeft(client.plan?.endDate);
 
   return(<div>
     <div className="sa">
       <div>
-        <span className={`badge ${st==="Activo"?"bd-green":st==="Vencido"?"bd-red":"bd-gray"}`} style={{fontSize:12,padding:"4px 12px"}}>{st}</span>
-        {dl!==null&&<span style={{fontSize:11,color:"#6B7A99",marginLeft:8}}>{dl<0?`Venció hace ${Math.abs(dl)} días`:`${dl} días restantes`}</span>}
+        <span className={`badge ${st==="Activo"?"bd-green":st==="Vencido"?"bd-red":st==="Pausado"?"bd-yellow":"bd-gray"}`} style={{fontSize:12,padding:"4px 12px"}}>{st}</span>
+        {dl!==null&&!client.plan?.paused&&<span style={{fontSize:11,color:"#6B7A99",marginLeft:8}}>{dl<0?`Venció hace ${Math.abs(dl)} días`:`${dl} días restantes`}</span>}
+        {client.plan?.paused&&<span style={{fontSize:11,color:"#F57C00",marginLeft:8}}>Plan pausado</span>}
       </div>
       <button className="btn btn-ok btn-sm" onClick={()=>setShowPay(true)}>💰 Registrar pago</button>
     </div>
@@ -556,7 +581,7 @@ function PaymentModule({client,setClient}){
         <div className="fg"><label>Notas</label><input className="inp" value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Opcional"/></div>
       </div>
       <div style={{background:"#EFF6FF",borderRadius:8,padding:10,fontSize:12,marginBottom:12,color:"#1A5DC8"}}>
-        ✅ Nuevo vencimiento: <strong>{fmtDate(addMonths(client.plan?.endDate&&getPlanStatus(client.plan.endDate)==="Activo"?client.plan.endDate:payDate,period))}</strong>
+        ✅ Nuevo vencimiento: <strong>{fmtDate(addMonths(client.plan?.endDate&&getPlanStatusFromEndDate(client.plan?.endDate)==="Activo"?client.plan.endDate:payDate,period))}</strong>
       </div>
       <div style={{display:"flex",gap:8}}><button className="btn btn-ok" onClick={registerPayment}>Confirmar pago</button><button className="btn btn-g" onClick={()=>setShowPay(false)}>Cancelar</button></div>
     </Modal>}
@@ -565,16 +590,67 @@ function PaymentModule({client,setClient}){
 
 // ── PLAN EDITOR ──
 function PlanEditor({client,onSave}){
-  const[form,setForm]=useState(()=>({type:"Base",modality:"En Estudio",format:"Individual",startDate:"",endDate:"",price:"",notes:"",...(client.plan||{})}));
+  const[form,setForm]=useState(()=>({type:"Base",modality:"En Estudio",format:"Individual",startDate:"",endDate:"",price:"",notes:"",paused:false,pausedAt:null,...(client.plan||{})}));
+
+  function handlePause(){
+    if(!form.paused){
+      // Pause: record the pause date
+      setForm(f=>({...f,paused:true,pausedAt:new Date().toISOString().split("T")[0]}));
+    } else {
+      // Unpause: extend end date by the number of days paused
+      const pausedAt=form.pausedAt?new Date(form.pausedAt+"T12:00:00"):new Date();
+      const today=new Date();
+      const daysPaused=Math.max(0,Math.ceil((today-pausedAt)/(1000*60*60*24)));
+      let newEnd=form.endDate;
+      if(newEnd&&daysPaused>0){
+        const d=new Date(newEnd+"T12:00:00");
+        d.setDate(d.getDate()+daysPaused);
+        newEnd=d.toISOString().split("T")[0];
+      }
+      setForm(f=>({...f,paused:false,pausedAt:null,endDate:newEnd}));
+    }
+  }
+
+  const st=getPlanStatus(form);
+  const dl=daysLeft(form.endDate);
+  const daysPausedSoFar=form.paused&&form.pausedAt?Math.ceil((new Date()-new Date(form.pausedAt+"T12:00:00"))/(1000*60*60*24)):0;
+
   return(<div className="card">
-    <div style={{fontWeight:700,fontSize:13,marginBottom:12}}>Configuración del plan</div>
-    <div className="fr3"><div className="fg"><label>Tipo</label><select className="sel" value={form.type} onChange={e=>setForm({...form,type:e.target.value})}>{PLAN_TYPES.map(t=><option key={t} value={t}>{t}</option>)}</select></div>
-    <div className="fg"><label>Modalidad</label><select className="sel" value={form.modality} onChange={e=>setForm({...form,modality:e.target.value})}>{PLAN_MODALITIES.map(m=><option key={m} value={m}>{m}</option>)}</select></div>
-    <div className="fg"><label>Formato</label><select className="sel" value={form.format} onChange={e=>setForm({...form,format:e.target.value})}>{PLAN_FORMATS.map(f=><option key={f} value={f}>{f}</option>)}</select></div></div>
-    <div className="fr2"><div className="fg"><label>Inicio</label><input className="inp" type="date" value={form.startDate||""} onChange={e=>setForm({...form,startDate:e.target.value})}/></div>
-    <div className="fg"><label>Precio</label><input className="inp" value={form.price||""} onChange={e=>setForm({...form,price:e.target.value})} placeholder="₡ / $"/></div></div>
+    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14,flexWrap:"wrap",gap:8}}>
+      <div style={{fontWeight:700,fontSize:13}}>Configuración del plan</div>
+      <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+        <span className={`badge ${st==="Activo"?"bd-green":st==="Pausado"?"bd-yellow":st==="Vencido"?"bd-red":"bd-gray"}`}>{st}</span>
+        {dl!==null&&!form.paused&&<span style={{fontSize:11,color:dl<0?"#E53935":dl<=30?"#F57C00":"#6B7A99"}}>{dl<0?`Venció hace ${Math.abs(dl)}d`:`${dl} días restantes`}</span>}
+        {form.paused&&<span style={{fontSize:11,color:"#F57C00"}}>Pausado hace {daysPausedSoFar}d</span>}
+      </div>
+    </div>
+
+    <div className="fr3">
+      <div className="fg"><label>Tipo</label><select className="sel" value={form.type} onChange={e=>setForm({...form,type:e.target.value})}>{PLAN_TYPES.map(t=><option key={t} value={t}>{t}</option>)}</select></div>
+      <div className="fg"><label>Modalidad</label><select className="sel" value={form.modality} onChange={e=>setForm({...form,modality:e.target.value})}>{PLAN_MODALITIES.map(m=><option key={m} value={m}>{m}</option>)}</select></div>
+      <div className="fg"><label>Formato</label><select className="sel" value={form.format} onChange={e=>setForm({...form,format:e.target.value})}>{PLAN_FORMATS.map(f=><option key={f} value={f}>{f}</option>)}</select></div>
+    </div>
+    <div className="fr3">
+      <div className="fg"><label>Fecha inicio</label><input className="inp" type="date" value={form.startDate||""} onChange={e=>setForm({...form,startDate:e.target.value})}/></div>
+      <div className="fg">
+        <label>Fecha vencimiento <span style={{color:"#1A5DC8",fontSize:9,fontWeight:700}}>EDITABLE</span></label>
+        <input className="inp" type="date" value={form.endDate||""} onChange={e=>setForm({...form,endDate:e.target.value})}/>
+      </div>
+      <div className="fg"><label>Precio (₡/$)</label><input className="inp" value={form.price||""} onChange={e=>setForm({...form,price:e.target.value})} placeholder="0"/></div>
+    </div>
     <div className="fg"><label>Notas</label><input className="inp" value={form.notes||""} onChange={e=>setForm({...form,notes:e.target.value})} placeholder="Descuento, acuerdo especial..."/></div>
-    <button className="btn btn-p" onClick={()=>onSave(form)}>💾 Guardar configuración</button>
+
+    <div style={{borderTop:"1px solid #DDE4F0",paddingTop:12,marginTop:4,display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
+      <button className="btn btn-p" onClick={()=>onSave(form)}>💾 Guardar</button>
+      <button
+        className={`btn ${form.paused?"btn-ok":"btn-w"}`}
+        onClick={handlePause}
+        title={form.paused?"Quitar pausa y extender fecha según días pausados":"Poner plan en pausa"}
+      >
+        {form.paused?"▶ Reactivar plan":"⏸ Pausar plan"}
+      </button>
+      {form.paused&&<span style={{fontSize:11,color:"#6B7A99",fontStyle:"italic"}}>Al reactivar se añaden {daysPausedSoFar}d a la fecha de vencimiento</span>}
+    </div>
   </div>);
 }
 
@@ -600,29 +676,45 @@ function MeasurementsTab({client,measurements,setMeasurements}){
 }
 
 // ── HISTORY WITH CHART SELECTOR ──
-function HistoryTab({client,measurements,setMeasurements}){
-  const[chartField,setChartField]=useState("weight");
-  const clientMs=measurements.filter(m=>m.clientId===client.id).sort((a,b)=>new Date(b.date)-new Date(a.date));
-  const chartData=clientMs.slice(0,10).reverse().filter(m=>m[chartField]&&Number(m[chartField])>0);
-  const max=chartData.length?Math.max(...chartData.map(m=>Number(m[chartField]))):1;
-  const min=chartData.length?Math.min(...chartData.map(m=>Number(m[chartField]))):0;
-  const range=max-min||1;
-  const fld=MEASUREMENT_FIELDS.find(f=>f.key===chartField);
-
-  function del(id){if(!confirm("¿Eliminar?"))return;setMeasurements(measurements.filter(m=>m.id!==id))}
-
-  return(<div>
-    {clientMs.length>1&&<div className="card" style={{marginBottom:12}}>
-      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10,flexWrap:"wrap"}}>
-        <div style={{fontSize:11,fontWeight:700,color:"#6B7A99",textTransform:"uppercase",letterSpacing:1}}>Gráfico:</div>
-        <select className="sel" style={{width:"auto",minWidth:140}} value={chartField} onChange={e=>setChartField(e.target.value)}>
-          {MEASUREMENT_FIELDS.map(f=><option key={f.key} value={f.key}>{f.label}{f.unit?` (${f.unit})`:""}</option>)}
-        </select>
+function MultiChart({clientMs}){
+  const[selected,setSelected]=useState(["weight"]);
+  function toggle(key){setSelected(s=>s.includes(key)?s.filter(x=>x!==key):[...s,key]);}
+  const dates=[...new Map(clientMs.map(m=>[m.date,m])).keys()].slice(-10);
+  const hasData=selected.some(key=>clientMs.some(m=>m[key]&&Number(m[key])>0));
+  const fieldRanges={};
+  selected.forEach(key=>{const vals=clientMs.filter(m=>m[key]&&Number(m[key])>0).map(m=>Number(m[key]));if(vals.length)fieldRanges[key]={max:Math.max(...vals),min:Math.min(...vals),range:Math.max(...vals)-Math.min(...vals)||1};});
+  return(<div className="card" style={{marginBottom:12}}>
+    <div style={{fontSize:11,fontWeight:700,color:"#6B7A99",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Gráfico — Selecciona métricas</div>
+    <div className="chips">
+      {MEASUREMENT_FIELDS.map((f,i)=>{const on=selected.includes(f.key);const color=CHART_COLORS[i%CHART_COLORS.length];return(<button key={f.key} className={`chip${on?" on":""}`} style={on?{background:color,borderColor:color}:{}} onClick={()=>toggle(f.key)}>{f.label}{f.unit?` (${f.unit})`:""}</button>);})}
+    </div>
+    {selected.length===0&&<div style={{textAlign:"center",padding:12,color:"#6B7A99",fontSize:12}}>Selecciona al menos una métrica</div>}
+    {selected.length>0&&!hasData&&<div style={{textAlign:"center",padding:12,color:"#6B7A99",fontSize:12}}>Sin datos para las métricas seleccionadas</div>}
+    {selected.length>0&&hasData&&dates.length>1&&(<div className="chart-wrap">
+      <div style={{display:"flex",alignItems:"flex-end",gap:4,height:120,overflowX:"auto"}}>
+        {dates.map(date=>{const m=clientMs.find(x=>x.date===date);return(<div key={date} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2,flex:1,minWidth:36}}>
+          <div style={{display:"flex",alignItems:"flex-end",gap:2,height:90,justifyContent:"center"}}>
+            {selected.map((key,ki)=>{const fr=fieldRanges[key];const val=m?Number(m[key]):0;const color=CHART_COLORS[MEASUREMENT_FIELDS.findIndex(f=>f.key===key)%CHART_COLORS.length];if(!fr||!val)return<div key={key} style={{width:8}}/>;const h=Math.max(4,((val-fr.min)/fr.range)*80+8);return(<div key={key} title={`${MEASUREMENT_FIELDS.find(f=>f.key===key)?.label}: ${val}`} style={{width:8,height:h,background:color,borderRadius:"2px 2px 0 0"}}/>);})}
+          </div>
+          <div style={{fontSize:8,color:"#6B7A99",textAlign:"center",whiteSpace:"nowrap"}}>{date.slice(5)}</div>
+        </div>);})}
       </div>
-      {chartData.length>1?(<div className="chart-wrap"><div className="chart-inner">{chartData.map((m,i)=>{const h=Math.max(4,((Number(m[chartField])-min)/range)*80+10);return(<div key={i} className="chart-col"><div className="chart-val">{m[chartField]}</div><div className="chart-bar-f" style={{height:h}}/><div className="chart-lbl">{m.date?.slice(5)}</div></div>);})}</div></div>):(<div style={{textAlign:"center",padding:12,color:"#6B7A99",fontSize:12}}>Necesitas al menos 2 mediciones de {fld?.label} para ver la gráfica</div>)}
-    </div>}
+      <div style={{display:"flex",flexWrap:"wrap",gap:8,marginTop:10}}>
+        {selected.map((key)=>{const fld=MEASUREMENT_FIELDS.find(f=>f.key===key);const i=MEASUREMENT_FIELDS.findIndex(f=>f.key===key);const color=CHART_COLORS[i%CHART_COLORS.length];return(<div key={key} style={{display:"flex",alignItems:"center",gap:4,fontSize:10,color:"#0D1B3E"}}><div style={{width:10,height:10,borderRadius:2,background:color,flexShrink:0}}/>{fld?.label}{fld?.unit?` (${fld.unit})`:""}</div>);})}
+      </div>
+    </div>)}
+    {dates.length<=1&&hasData&&<div style={{textAlign:"center",padding:12,color:"#6B7A99",fontSize:12}}>Necesitas al menos 2 registros para ver la gráfica</div>}
+  </div>);
+}
+
+function HistoryTab({client,measurements,setMeasurements}){
+  const clientMs=measurements.filter(m=>m.clientId===client.id).sort((a,b)=>new Date(a.date)-new Date(b.date));
+  const clientMsDesc=[...clientMs].reverse();
+  function del(id){if(!confirm("¿Eliminar?"))return;setMeasurements(measurements.filter(m=>m.id!==id))}
+  return(<div>
+    {clientMs.length>1&&<MultiChart clientMs={clientMs}/>}
     <div style={{fontWeight:700,fontSize:13,marginBottom:10}}>Historial ({clientMs.length})</div>
-    {clientMs.map(m=>(<div key={m.id} className="hist-row">
+    {clientMsDesc.map(m=>(<div key={m.id} className="hist-row">
       <div className="hist-date">{fmtDate(m.date)}</div>
       <div className="hist-vals">{MEASUREMENT_FIELDS.map(f=>m[f.key]&&<span key={f.key} className="hist-val">{f.label.split(" ")[0]}: {m[f.key]}{f.unit}</span>)}</div>
       <button className="ibtn d" onClick={()=>del(m.id)}>🗑</button>
@@ -711,7 +803,7 @@ function ClientsPage({users,setUsers,routines,measurements,setMeasurements}){
       <table className="tbl">
         <thead><tr><th>Cliente</th><th>Plan</th><th>Modalidad</th><th>Vence</th><th>Estado</th></tr></thead>
         <tbody>{users.map(u=>{
-          const st=getPlanStatus(u.plan?.endDate);
+          const st=getPlanStatus(u.plan);
           const dl=daysLeft(u.plan?.endDate);
           return(<tr key={u.id} style={{cursor:"pointer"}} onClick={()=>setDetail(u)}>
             <td><div style={{display:"flex",alignItems:"center",gap:7}}><div style={{width:28,height:28,borderRadius:"50%",background:"#3A8EF6",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,color:"#fff",flexShrink:0}}>{initials(u.name)}</div><div><strong>{u.name}</strong><br/><span style={{color:"#6B7A99",fontSize:10}}>@{u.username}</span></div></div></td>
@@ -760,13 +852,19 @@ function ExercisesPage({exercises,setExercises}){
       <tbody>{list.map(ex=>(<tr key={ex.id}>
         <td><strong>{ex.name}</strong></td><td><span className="badge bd-blue">{ex.muscleGroup}</span></td><td><span className="badge bd-gray">{ex.equipment||"Ninguno"}</span></td>
         <td>{ex.videoUrl?<button className="vbtn" onClick={()=>setVideoEx(ex)}>▶</button>:<span style={{color:"#6B7A99",fontSize:10}}>—</span>}</td>
-        <td style={{display:"flex",gap:4}}><button className="ibtn" onClick={()=>openEdit(ex)}>✏️</button><button className="ibtn d" onClick={()=>del(ex.id)}>🗑</button></td>
+        <td style={{whiteSpace:"nowrap"}}><button className="ibtn" onClick={()=>openEdit(ex)}>✏️</button><button className="ibtn d" onClick={()=>del(ex.id)}>🗑</button></td>
       </tr>))}{list.length===0&&<tr><td colSpan={5}><div className="empty"><div className="ico">🏋️</div><p>Sin ejercicios</p></div></td></tr>}</tbody></table>
     </div>
     {showAdd&&<Modal title={editing?"Editar ejercicio":"Nuevo ejercicio"} onClose={()=>setShowAdd(false)}>
       <div className="fg"><label>Nombre</label><input className="inp" value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Nombre del ejercicio"/></div>
       <div className="fr2">
-        <div className="fg"><label>Grupo muscular</label><input className="inp" list="mg-list" value={form.muscleGroup} onChange={e=>setForm({...form,muscleGroup:e.target.value})}/><datalist id="mg-list">{MUSCLE_GROUPS_FILTER.slice(1).map(g=><option key={g} value={g}/>)}</datalist></div>
+        <div className="fg"><label>Grupo muscular</label>
+              <select className="sel" value={MUSCLE_GROUPS_FILTER.slice(1).includes(form.muscleGroup)?form.muscleGroup:"__custom__"} onChange={e=>{if(e.target.value!=="__custom__")setForm({...form,muscleGroup:e.target.value})}}>
+                {MUSCLE_GROUPS_FILTER.slice(1).map(g=><option key={g} value={g}>{g}</option>)}
+                {!MUSCLE_GROUPS_FILTER.slice(1).includes(form.muscleGroup)&&form.muscleGroup&&<option value="__custom__">{form.muscleGroup}</option>}
+              </select>
+              <input className="inp" style={{marginTop:4,fontSize:12}} value={form.muscleGroup} onChange={e=>setForm({...form,muscleGroup:e.target.value})} placeholder="O escribe uno nuevo..."/>
+            </div>
         <div className="fg"><label>Tipo</label><select className="sel" value={form.type} onChange={e=>setForm({...form,type:e.target.value})}><option value="normal">Normal</option><option value="stretching">Estiramiento</option></select></div>
       </div>
       <div className="fg"><label>Equipo</label><select className="sel" value={form.equipment} onChange={e=>setForm({...form,equipment:e.target.value})}>{EQUIPMENT_TYPES.map(eq=><option key={eq} value={eq}>{eq}</option>)}</select></div>
@@ -1028,16 +1126,15 @@ function MyProfilePage({user,setUsers,users,measurements}){
   const[tab,setTab]=useState("info");
   const[editing,setEditing]=useState(false);
   const[form,setForm]=useState({...user});
-  const[chartField,setChartField]=useState("weight");
   const photoKey="jh_photo_"+user.id;
   const[photo,setPhoto]=useState(()=>localStorage.getItem(photoKey)||"");
 
   const age=user.dob?calcAge(user.dob):null;
   const dl=daysLeft(user.plan?.endDate);
   const ini=initials(user.name);
-  const clientMs=measurements.filter(m=>m.clientId===user.id).sort((a,b)=>new Date(b.date)-new Date(a.date));
-  const latest=clientMs[0];
-  const chartData=clientMs.slice(0,10).reverse().filter(m=>m[chartField]&&Number(m[chartField])>0);
+  const clientMsAsc=measurements.filter(m=>m.clientId===user.id).sort((a,b)=>new Date(a.date)-new Date(b.date));
+  const clientMsDesc=[...clientMsAsc].reverse();
+  const latest=clientMsDesc[0];
 
   function saveProfile(){
     setUsers(users.map(u=>u.id===user.id?{...u,...form}:u));
@@ -1051,10 +1148,6 @@ function MyProfilePage({user,setUsers,users,measurements}){
     reader.onload=ev=>{const data=ev.target.result;localStorage.setItem(photoKey,data);setPhoto(data);}
     reader.readAsDataURL(file);
   }
-
-  const max=chartData.length?Math.max(...chartData.map(m=>Number(m[chartField]))):1;
-  const min=chartData.length?Math.min(...chartData.map(m=>Number(m[chartField]))):0;
-  const range=max-min||1;
 
   return(<div>
     <div className="ph"><div className="pt">Mi Perfil</div></div>
@@ -1107,15 +1200,10 @@ function MyProfilePage({user,setUsers,users,measurements}){
     </div>)}
 
     {tab==="history"&&(<div>
-      {clientMs.length>1&&<div className="card" style={{marginBottom:12}}>
-        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10,flexWrap:"wrap"}}>
-          <span style={{fontSize:11,fontWeight:700,color:"#6B7A99",textTransform:"uppercase"}}>Ver:</span>
-          <select className="sel" style={{width:"auto",minWidth:140,minHeight:36}} value={chartField} onChange={e=>setChartField(e.target.value)}>{MEASUREMENT_FIELDS.map(f=><option key={f.key} value={f.key}>{f.label}{f.unit?` (${f.unit})`:""}</option>)}</select>
-        </div>
-        {chartData.length>1?(<div className="chart-wrap"><div className="chart-inner">{chartData.map((m,i)=>{const h=Math.max(4,((Number(m[chartField])-min)/range)*80+10);return(<div key={i} className="chart-col"><div className="chart-val">{m[chartField]}</div><div className="chart-bar-f" style={{height:h}}/><div className="chart-lbl">{m.date?.slice(5)}</div></div>);})}</div></div>):<div style={{textAlign:"center",padding:10,color:"#6B7A99",fontSize:12}}>Necesitas más datos para ver la gráfica</div>}
-      </div>}
-      {clientMs.map(m=>(<div key={m.id} className="hist-row"><div className="hist-date">{fmtDate(m.date)}</div><div className="hist-vals">{MEASUREMENT_FIELDS.map(f=>m[f.key]&&<span key={f.key} className="hist-val">{f.label.split(" ")[0]}: {m[f.key]}{f.unit}</span>)}</div></div>))}
-      {clientMs.length===0&&<div className="empty"><div className="ico">📈</div><p>Sin historial</p></div>}
+      {clientMsAsc.length>1&&<MultiChart clientMs={clientMsAsc}/>}
+      <div style={{fontWeight:700,fontSize:13,marginBottom:10}}>Historial ({clientMsAsc.length})</div>
+      {clientMsDesc.map(m=>(<div key={m.id} className="hist-row"><div className="hist-date">{fmtDate(m.date)}</div><div className="hist-vals">{MEASUREMENT_FIELDS.map(f=>m[f.key]&&<span key={f.key} className="hist-val">{f.label.split(" ")[0]}: {m[f.key]}{f.unit}</span>)}</div></div>))}
+      {clientMsAsc.length===0&&<div className="empty"><div className="ico">📈</div><p>Sin historial</p></div>}
     </div>)}
   </div>);
 }
@@ -1153,7 +1241,10 @@ export default function App(){
     <style>{STYLES}</style>
     <div className="app">
       <Sidebar user={liveUser} page={page} setPage={setPage} onLogout={logout}/>
-      <main className="main">{content}</main>
+      <main className="main">
+        {content}
+        <div className="main-footer">© {new Date().getFullYear()} Johel Herrera · Strength | Discipline | Evolution · Todos los derechos reservados · Desarrollado exclusivamente para uso de Johel Herrera Personal Training</div>
+      </main>
     </div>
   </>);
 }
