@@ -178,11 +178,13 @@ const STYLES=`
 @import url('https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;900&family=Barlow+Condensed:wght@600;700;900&display=swap');
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;font-family:'Barlow',sans-serif;background:#F5F7FC;color:#0D1B3E;-webkit-tap-highlight-color:transparent;overscroll-behavior:none}
-html{background:#F5F7FC}
+html{background:#F5F7FC !important}
+body{background:#F5F7FC !important}
+#root{background:#F5F7FC;min-height:100vh;min-height:100dvh}
 .app{display:flex;min-height:100vh;min-height:100dvh;background:#F5F7FC}
 /* SIDEBAR */
 .sidebar{width:210px;min-width:210px;background:#0B1F4B;display:flex;flex-direction:column;position:fixed;top:0;left:0;height:100vh;height:100dvh;overflow-y:auto;z-index:200;transition:transform 0.2s}
-.main{flex:1;margin-left:210px;padding:20px;overflow-y:auto;min-width:0;max-width:100%}
+.main{flex:1;margin-left:210px;padding:20px;min-width:0;max-width:100%;background:#F5F7FC;min-height:100vh;min-height:100dvh}
 .sb-logo{padding:16px 12px;border-bottom:1px solid rgba(255,255,255,0.1);display:flex;flex-direction:column;align-items:center;gap:4px}
 .sb-brand{font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:900;letter-spacing:1px;color:#fff;text-align:center;text-transform:uppercase}
 .sb-sub{font-size:8px;color:rgba(255,255,255,0.35);letter-spacing:2px;text-transform:uppercase}
@@ -656,54 +658,78 @@ function PlanEditor({client,onSave}){
 
 // ── MEASUREMENTS ──
 function MeasurementsTab({client,measurements,setMeasurements}){
+  const blankForm={date:new Date().toISOString().split("T")[0],...Object.fromEntries(MEASUREMENT_FIELDS.map(f=>[f.key,""]))};
   const[showAdd,setShowAdd]=useState(false);
-  const[mForm,setMForm]=useState({date:new Date().toISOString().split("T")[0],...Object.fromEntries(MEASUREMENT_FIELDS.map(f=>[f.key,""]))});
+  const[editingM,setEditingM]=useState(null); // measurement id being edited
+  const[mForm,setMForm]=useState(blankForm);
   const clientMs=measurements.filter(m=>m.clientId===client.id).sort((a,b)=>new Date(b.date)-new Date(a.date));
   const latest=clientMs[0];
 
-  function save(){setMeasurements([...measurements,{id:genId(),clientId:client.id,...mForm}]);setShowAdd(false);setMForm({date:new Date().toISOString().split("T")[0],...Object.fromEntries(MEASUREMENT_FIELDS.map(f=>[f.key,""]))});}
-  function del(id){if(!confirm("¿Eliminar?"))return;setMeasurements(measurements.filter(m=>m.id!==id))}
+  function openAdd(){setMForm(blankForm);setEditingM(null);setShowAdd(true)}
+  function openEdit(m){setMForm({date:m.date,...Object.fromEntries(MEASUREMENT_FIELDS.map(f=>[f.key,m[f.key]||""]))});setEditingM(m.id);setShowAdd(true)}
+  function save(){
+    if(editingM){
+      setMeasurements(measurements.map(m=>m.id===editingM?{...m,...mForm}:m));
+    } else {
+      setMeasurements([...measurements,{id:genId(),clientId:client.id,...mForm}]);
+    }
+    setShowAdd(false);setMForm(blankForm);setEditingM(null);
+  }
+  function del(id){if(!confirm("¿Eliminar medición?"))return;setMeasurements(measurements.filter(m=>m.id!==id))}
 
   return(<div>
-    <div className="sa"><div style={{fontWeight:700,fontSize:13}}>Última medición{latest?` — ${fmtDate(latest.date)}`:""}</div><button className="btn btn-p btn-sm" onClick={()=>setShowAdd(true)}>+ Registrar</button></div>
+    <div className="sa">
+      <div style={{fontWeight:700,fontSize:13}}>Última medición{latest?` — ${fmtDate(latest.date)}`:""}</div>
+      <button className="btn btn-p btn-sm" onClick={openAdd}>+ Registrar</button>
+    </div>
     {latest?(<div className="m-grid">{MEASUREMENT_FIELDS.map(f=>{const v=latest[f.key];return v?(<div key={f.key} className="m-card"><div className="m-lbl">{f.label}</div><div className="m-val">{v}<span className="m-unit"> {f.unit}</span></div></div>):null;})}</div>):<div className="empty"><div className="ico">📊</div><p>Sin mediciones</p></div>}
-    {showAdd&&<Modal title="Registrar medición" onClose={()=>setShowAdd(false)}>
+    {clientMs.length>1&&<div style={{marginTop:14}}>
+      <div style={{fontSize:10,fontWeight:700,color:"#6B7A99",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Todas las mediciones</div>
+      {clientMs.map(m=>(
+        <div key={m.id} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 0",borderBottom:"1px solid #DDE4F0"}}>
+          <div style={{fontWeight:700,fontSize:12,minWidth:80,color:"#0B1F4B"}}>{fmtDate(m.date)}</div>
+          <div style={{flex:1,display:"flex",flexWrap:"wrap",gap:4}}>{MEASUREMENT_FIELDS.map(f=>m[f.key]&&<span key={f.key} className="hist-val">{f.label.split(" ")[0]}: {m[f.key]}{f.unit}</span>)}</div>
+          <button className="ibtn" onClick={()=>openEdit(m)} title="Editar">✏️</button>
+          <button className="ibtn d" onClick={()=>del(m.id)} title="Eliminar">🗑</button>
+        </div>
+      ))}
+    </div>}
+    {showAdd&&<Modal title={editingM?"Editar medición":"Registrar medición"} onClose={()=>setShowAdd(false)}>
       <div className="fg"><label>Fecha</label><input className="inp" type="date" value={mForm.date} onChange={e=>setMForm({...mForm,date:e.target.value})}/></div>
       <div className="fr2">{MEASUREMENT_FIELDS.map(f=>(<div key={f.key} className="fg"><label>{f.label}{f.unit?` (${f.unit})`:""}</label><input className="inp" type="number" step="0.1" value={mForm[f.key]} onChange={e=>setMForm({...mForm,[f.key]:e.target.value})} placeholder="—"/></div>))}</div>
-      <div style={{display:"flex",gap:8}}><button className="btn btn-p" onClick={save}>Guardar</button><button className="btn btn-g" onClick={()=>setShowAdd(false)}>Cancelar</button></div>
+      <div style={{display:"flex",gap:8}}><button className="btn btn-p" onClick={save}>{editingM?"Guardar cambios":"Guardar"}</button><button className="btn btn-g" onClick={()=>setShowAdd(false)}>Cancelar</button></div>
     </Modal>}
   </div>);
 }
 
 // ── HISTORY WITH CHART SELECTOR ──
 function MultiChart({clientMs}){
-  const[selected,setSelected]=useState(["weight"]);
-  function toggle(key){setSelected(s=>s.includes(key)?s.filter(x=>x!==key):[...s,key]);}
-  const dates=[...new Map(clientMs.map(m=>[m.date,m])).keys()].slice(-10);
-  const hasData=selected.some(key=>clientMs.some(m=>m[key]&&Number(m[key])>0));
-  const fieldRanges={};
-  selected.forEach(key=>{const vals=clientMs.filter(m=>m[key]&&Number(m[key])>0).map(m=>Number(m[key]));if(vals.length)fieldRanges[key]={max:Math.max(...vals),min:Math.min(...vals),range:Math.max(...vals)-Math.min(...vals)||1};});
+  const[chartField,setChartField]=useState("weight");
+  const data=clientMs.filter(m=>m[chartField]&&Number(m[chartField])>0).slice(-10);
+  const max=data.length?Math.max(...data.map(m=>Number(m[chartField]))):1;
+  const min=data.length?Math.min(...data.map(m=>Number(m[chartField]))):0;
+  const range=max-min||1;
+  const fld=MEASUREMENT_FIELDS.find(f=>f.key===chartField);
   return(<div className="card" style={{marginBottom:12}}>
-    <div style={{fontSize:11,fontWeight:700,color:"#6B7A99",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Gráfico — Selecciona métricas</div>
-    <div className="chips">
-      {MEASUREMENT_FIELDS.map((f,i)=>{const on=selected.includes(f.key);const color=CHART_COLORS[i%CHART_COLORS.length];return(<button key={f.key} className={`chip${on?" on":""}`} style={on?{background:color,borderColor:color}:{}} onClick={()=>toggle(f.key)}>{f.label}{f.unit?` (${f.unit})`:""}</button>);})}
+    <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10,flexWrap:"wrap"}}>
+      <div style={{fontSize:11,fontWeight:700,color:"#6B7A99",textTransform:"uppercase",letterSpacing:1}}>Gráfico:</div>
+      <select className="sel" style={{width:"auto",minWidth:150,flex:1}} value={chartField} onChange={e=>setChartField(e.target.value)}>
+        {MEASUREMENT_FIELDS.map(f=><option key={f.key} value={f.key}>{f.label}{f.unit?` (${f.unit})`:""}</option>)}
+      </select>
     </div>
-    {selected.length===0&&<div style={{textAlign:"center",padding:12,color:"#6B7A99",fontSize:12}}>Selecciona al menos una métrica</div>}
-    {selected.length>0&&!hasData&&<div style={{textAlign:"center",padding:12,color:"#6B7A99",fontSize:12}}>Sin datos para las métricas seleccionadas</div>}
-    {selected.length>0&&hasData&&dates.length>1&&(<div className="chart-wrap">
-      <div style={{display:"flex",alignItems:"flex-end",gap:4,height:120,overflowX:"auto"}}>
-        {dates.map(date=>{const m=clientMs.find(x=>x.date===date);return(<div key={date} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2,flex:1,minWidth:36}}>
-          <div style={{display:"flex",alignItems:"flex-end",gap:2,height:90,justifyContent:"center"}}>
-            {selected.map((key,ki)=>{const fr=fieldRanges[key];const val=m?Number(m[key]):0;const color=CHART_COLORS[MEASUREMENT_FIELDS.findIndex(f=>f.key===key)%CHART_COLORS.length];if(!fr||!val)return<div key={key} style={{width:8}}/>;const h=Math.max(4,((val-fr.min)/fr.range)*80+8);return(<div key={key} title={`${MEASUREMENT_FIELDS.find(f=>f.key===key)?.label}: ${val}`} style={{width:8,height:h,background:color,borderRadius:"2px 2px 0 0"}}/>);})}
-          </div>
-          <div style={{fontSize:8,color:"#6B7A99",textAlign:"center",whiteSpace:"nowrap"}}>{date.slice(5)}</div>
-        </div>);})}
+    {data.length>1?(<div className="chart-wrap">
+      <div className="chart-inner">
+        {data.map((m,i)=>{
+          const h=Math.max(6,((Number(m[chartField])-min)/range)*80+12);
+          const color=CHART_COLORS[MEASUREMENT_FIELDS.findIndex(f=>f.key===chartField)%CHART_COLORS.length];
+          return(<div key={i} className="chart-col">
+            <div className="chart-val">{m[chartField]}</div>
+            <div className="chart-bar-f" style={{height:h,background:color}}/>
+            <div className="chart-lbl">{m.date?.slice(5)}</div>
+          </div>);
+        })}
       </div>
-      <div style={{display:"flex",flexWrap:"wrap",gap:8,marginTop:10}}>
-        {selected.map((key)=>{const fld=MEASUREMENT_FIELDS.find(f=>f.key===key);const i=MEASUREMENT_FIELDS.findIndex(f=>f.key===key);const color=CHART_COLORS[i%CHART_COLORS.length];return(<div key={key} style={{display:"flex",alignItems:"center",gap:4,fontSize:10,color:"#0D1B3E"}}><div style={{width:10,height:10,borderRadius:2,background:color,flexShrink:0}}/>{fld?.label}{fld?.unit?` (${fld.unit})`:""}</div>);})}
-      </div>
-    </div>)}
-    {dates.length<=1&&hasData&&<div style={{textAlign:"center",padding:12,color:"#6B7A99",fontSize:12}}>Necesitas al menos 2 registros para ver la gráfica</div>}
+    </div>):<div style={{textAlign:"center",padding:12,color:"#6B7A99",fontSize:12}}>Necesitas al menos 2 mediciones de {fld?.label} para ver la gráfica</div>}
   </div>);
 }
 
