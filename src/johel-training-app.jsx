@@ -144,7 +144,7 @@ function calcAge(dob){
   if(n.getMonth()<b.getMonth()||(n.getMonth()===b.getMonth()&&n.getDate()<b.getDate()))age--;
   return age;
 }
-function fmtDate(d){if(!d)return"—";try{return new Date(d+"T12:00:00").toLocaleDateString("es-CR",{day:"2-digit",month:"short",year:"numeric"})}catch{return d}}
+function fmtDate(d){if(!d)return"—";try{const dt=d.includes("T")?new Date(d):new Date(d+"T12:00:00");return dt.toLocaleDateString("es-CR",{day:"2-digit",month:"short",year:"numeric"})}catch{return d}}
 function initials(name){return(name||"").split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase()}
 function planColor(type){return{Base:"bd-gray",Elite:"bd-purple",Activación:"bd-blue",Transformación:"bd-orange",Especial:"bd-teal"}[type]||"bd-gray"}
 function getPlanStatus(plan){
@@ -1056,41 +1056,73 @@ function RoutineEditor({routine,exercises,users,onSave,onBack}){
 }
 
 // ── ROUTINES LIST ──
-function RoutinesPage({routines,setRoutines,users,exercises}){
+function RoutinesPage({routines,setRoutines,users,setUsers,exercises}){
   const[editing,setEditing]=useState(null);
+  const[filterUser,setFilterUser]=useState("__all__");
   function saveRoutine(rt){
     const exists=routines.find(r=>r.id===rt.id);
-    if(exists)setRoutines(routines.map(r=>r.id===rt.id?{...rt,updatedAt:new Date().toISOString()}:r));
-    else setRoutines([...routines,{...rt,updatedAt:new Date().toISOString()}]);
+    const now=new Date().toISOString();
+    if(exists)setRoutines(routines.map(r=>r.id===rt.id?{...rt,updatedAt:now}:r));
+    else setRoutines([...routines,{...rt,createdAt:now,updatedAt:now}]);
     setEditing(null);
   }
   function del(id){if(!confirm("¿Eliminar rutina?"))return;setRoutines(routines.filter(r=>r.id!==id))}
-  function copy(rt){const newRt={...JSON.parse(JSON.stringify(rt)),id:genId(),title:rt.title+" (copia)",updatedAt:new Date().toISOString(),userId:""};setRoutines([...routines,newRt]);}
+  function duplicate(rt){const now=new Date().toISOString();const newRt={...JSON.parse(JSON.stringify(rt)),id:genId(),title:rt.title+" (copia)",createdAt:now,updatedAt:now,userId:""};setRoutines([...routines,newRt]);}
+  function setActive(rt){
+    if(!rt.userId)return;
+    setUsers(users.map(u=>u.id===rt.userId?{...u,activeRoutineId:rt.id}:u));
+  }
+
+  // Clients that have at least one routine
+  const usersWithRoutines=users.filter(u=>routines.some(r=>r.userId===u.id));
+
+  // Filter + sort: active first, then by createdAt desc
+  const filtered=routines
+    .filter(r=>filterUser==="__all__"||r.userId===filterUser)
+    .sort((a,b)=>{
+      const userA=users.find(u=>u.id===a.userId);
+      const userB=users.find(u=>u.id===b.userId);
+      const aActive=userA&&userA.activeRoutineId===a.id?1:0;
+      const bActive=userB&&userB.activeRoutineId===b.id?1:0;
+      if(aActive!==bActive)return bActive-aActive;
+      return new Date(b.createdAt||b.updatedAt||0)-new Date(a.createdAt||a.updatedAt||0);
+    });
 
   if(editing!==null)return<RoutineEditor routine={editing==="__new__"?null:editing} exercises={exercises} users={users} onSave={saveRoutine} onBack={()=>setEditing(null)}/>;
   return(<div>
-    <div className="ph"><div><div className="pt">Rutinas</div><div className="ps">{routines.length} rutinas</div></div><button className="btn btn-p" onClick={()=>setEditing("__new__")}>+ Nueva</button></div>
-    {routines.map(rt=>{const user=users.find(u=>u.id===rt.userId);const totalEx=rt.days?.reduce((s,d)=>s+d.groups.reduce((ss,g)=>ss+g.exercises.length,0),0)||0;
-    return(<div key={rt.id} className="card" style={{marginBottom:10}}>
+    <div className="ph"><div><div className="pt">Rutinas</div><div className="ps">{filtered.length} rutina{filtered.length!==1?"s":""}</div></div><button className="btn btn-p" onClick={()=>setEditing("__new__")}>+ Nueva</button></div>
+    <div style={{marginBottom:12,display:"flex",alignItems:"center",gap:10}}>
+      <select value={filterUser} onChange={e=>setFilterUser(e.target.value)} style={{fontFamily:"'Barlow',sans-serif",fontSize:13,padding:"8px 12px",borderRadius:8,border:"1px solid #DDE4F0",background:"#fff",color:"#0B1F4B",flex:1,maxWidth:280}}>
+        <option value="__all__">Todos los clientes</option>
+        {usersWithRoutines.map(u=><option key={u.id} value={u.id}>{u.name}</option>)}
+      </select>
+      {filterUser!=="__all__"&&<button onClick={()=>setFilterUser("__all__")} style={{fontSize:12,color:"#6B7A99",background:"none",border:"none",cursor:"pointer",padding:"4px 8px"}}>✕ Limpiar</button>}
+    </div>
+    {filtered.map(rt=>{const user=users.find(u=>u.id===rt.userId);const totalEx=rt.days?.reduce((s,d)=>s+d.groups.reduce((ss,g)=>ss+g.exercises.length,0),0)||0;
+    const isActive=user&&user.activeRoutineId===rt.id;
+    return(<div key={rt.id} className="card" style={{marginBottom:10,border:isActive?"2px solid #2E7D32":""}}>
       <div style={{display:"flex",alignItems:"flex-start",gap:10}}>
         <div style={{flex:1}}>
           <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:5,flexWrap:"wrap"}}>
             <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:17,fontWeight:900,color:"#0B1F4B"}}>{rt.title}</span>
             <span className="badge bd-blue">{rt.daysPerWeek}d/sem</span>
             {user&&<span className="badge bd-green">{user.name}</span>}
+            {isActive&&<span className="badge" style={{background:"#E8F5E9",color:"#2E7D32",border:"1px solid #A5D6A7"}}>⭐ Activa</span>}
           </div>
           <div style={{fontSize:11,color:"#6B7A99",display:"flex",gap:12,flexWrap:"wrap"}}>
-            <span>📅 {rt.days?.length||0} días</span><span>🏋️ {totalEx} ejercicios</span>{rt.updatedAt&&<span>🔄 {fmtDate(rt.updatedAt)}</span>}
+            <span>📅 {rt.days?.length||0} días</span><span>🏋️ {totalEx} ejercicios</span>
+            {(rt.createdAt||rt.updatedAt)&&<span>📆 {fmtDate(rt.createdAt||rt.updatedAt)}</span>}
           </div>
         </div>
         <div style={{display:"flex",gap:5,flexShrink:0,flexWrap:"wrap"}}>
-          <button className="btn btn-g btn-sm" onClick={()=>copy(rt)} title="Copiar rutina">📋 Copiar</button>
+          {rt.userId&&!isActive&&<button className="btn btn-sm" style={{background:"#E8F5E9",color:"#2E7D32",border:"1px solid #A5D6A7"}} onClick={()=>setActive(rt)}>⭐ Activar</button>}
+          <button className="btn btn-g btn-sm" onClick={()=>duplicate(rt)}>📋 Duplicar</button>
           <button className="btn btn-s btn-sm" onClick={()=>setEditing(rt)}>✏️ Editar</button>
           <button className="btn btn-d btn-sm" onClick={()=>del(rt.id)}>🗑</button>
         </div>
       </div>
     </div>);})}
-    {routines.length===0&&<div className="card"><div className="empty"><div className="ico">📋</div><p>Sin rutinas</p></div></div>}
+    {filtered.length===0&&<div className="card"><div className="empty"><div className="ico">📋</div><p>{filterUser==="__all__"?"Sin rutinas":"Este cliente no tiene rutinas"}</p></div></div>}
   </div>);
 }
 
@@ -1144,22 +1176,14 @@ function GroupTimer({restSeconds}){
   </div>);
 }
 
-// ── USER ROUTINE PAGE ──
-function MyRoutinePage({user,routines,exercises}){
-  const routine=routines.find(r=>r.userId===user.id);
+// ── ROUTINE DISPLAY (reusable) ──
+function RoutineDisplay({routine,exercises}){
   const[openDays,setOpenDays]=useState({});
   const[videoEx,setVideoEx]=useState(null);
   function toggleDay(id){setOpenDays(s=>({...s,[id]:!s[id]}))}
-  if(!routine)return(<div><div className="ph"><div className="pt">Mi Rutina</div></div><div className="card"><div className="empty"><div className="ico">📋</div><p>Tu entrenador aún no te ha asignado una rutina.<br/>¡Pronto llegará tu plan!</p></div></div></div>);
   const warmupIds=routine.warmupStretchIds||[];
   const cooldownIds=routine.cooldownStretchIds||[];
   return(<div>
-    <div className="ph">
-      <div style={{display:"flex",alignItems:"center",gap:10}}>
-        <Logo size={36}/>
-        <div><div className="pt" style={{fontSize:19}}>{routine.title}</div><div className="ps">{routine.daysPerWeek} días/semana</div></div>
-      </div>
-    </div>
     {routine.note&&<div className="note-box"><span>📝</span><span>{routine.note}</span></div>}
     {warmupIds.length>0&&(<div className="card" style={{marginBottom:12,background:"#E8F5E9",border:"1px solid #C8E6C9"}}>
       <div style={{fontWeight:700,fontSize:12,color:"#2E7D32",marginBottom:8,textTransform:"uppercase",letterSpacing:1}}>🧘 Calentamiento (20 seg c/u)</div>
@@ -1209,6 +1233,62 @@ function MyRoutinePage({user,routines,exercises}){
       {cooldownIds.map((id,i)=>{const ex=exercises.find(e=>e.id===id);return ex&&(<div key={id} style={{fontSize:13,padding:"6px 0",borderBottom:"1px solid #BBDEFB",display:"flex",alignItems:"center",gap:6}}><span style={{color:"#1A5DC8",fontWeight:700}}>{i+1}.</span><span style={{flex:1}}>{ex.name}</span>{ex.videoUrl&&<button className="vbtn" onClick={()=>setVideoEx(ex)}>▶</button>}</div>);})}
     </div>)}
     {videoEx&&<VideoModal name={videoEx.name} url={videoEx.videoUrl} onClose={()=>setVideoEx(null)}/>}
+  </div>);
+}
+
+// ── USER ROUTINE PAGE ──
+function MyRoutinePage({user,routines,exercises}){
+  const[showPrev,setShowPrev]=useState(false);
+  const[openPrev,setOpenPrev]=useState({});
+
+  // Sort: active first, then by createdAt desc
+  const userRoutines=routines
+    .filter(r=>r.userId===user.id)
+    .sort((a,b)=>{
+      const aActive=a.id===user.activeRoutineId?1:0;
+      const bActive=b.id===user.activeRoutineId?1:0;
+      if(aActive!==bActive)return bActive-aActive;
+      return new Date(b.createdAt||b.updatedAt||0)-new Date(a.createdAt||a.updatedAt||0);
+    });
+
+  const activeRoutine=userRoutines[0]||null;
+  const prevRoutines=userRoutines.slice(1);
+
+  if(!activeRoutine)return(<div><div className="ph"><div className="pt">Mi Rutina</div></div><div className="card"><div className="empty"><div className="ico">📋</div><p>Tu entrenador aún no te ha asignado una rutina.<br/>¡Pronto llegará tu plan!</p></div></div></div>);
+
+  return(<div>
+    <div className="ph">
+      <div style={{display:"flex",alignItems:"center",gap:10}}>
+        <Logo size={36}/>
+        <div>
+          <div className="pt" style={{fontSize:19}}>{activeRoutine.title}</div>
+          <div className="ps">{activeRoutine.daysPerWeek} días/semana{activeRoutine.createdAt&&` · ${fmtDate(activeRoutine.createdAt)}`}</div>
+        </div>
+      </div>
+    </div>
+
+    <RoutineDisplay routine={activeRoutine} exercises={exercises}/>
+
+    {prevRoutines.length>0&&(<div style={{marginTop:16}}>
+      <button onClick={()=>setShowPrev(s=>!s)} style={{display:"flex",alignItems:"center",gap:8,background:"none",border:"none",cursor:"pointer",color:"#1A5DC8",fontSize:13,fontWeight:700,padding:"10px 0",fontFamily:"'Barlow',sans-serif"}}>
+        <span>{showPrev?"▲":"▼"}</span>
+        <span>{showPrev?"Ocultar":"Ver"} rutinas anteriores ({prevRoutines.length})</span>
+      </button>
+      {showPrev&&(<div style={{marginTop:4}}>
+        {prevRoutines.map(rt=>(<div key={rt.id} style={{marginBottom:8}}>
+          <button onClick={()=>setOpenPrev(s=>({...s,[rt.id]:!s[rt.id]}))} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",background:"#F4F6FB",border:"1px solid #DDE4F0",borderRadius:10,padding:"12px 16px",cursor:"pointer",fontFamily:"'Barlow',sans-serif"}}>
+            <div style={{textAlign:"left"}}>
+              <div style={{fontSize:14,fontWeight:700,color:"#0B1F4B"}}>{rt.title}</div>
+              <div style={{fontSize:11,color:"#6B7A99",marginTop:2}}>{rt.daysPerWeek} días/semana{(rt.createdAt||rt.updatedAt)&&` · ${fmtDate(rt.createdAt||rt.updatedAt)}`}</div>
+            </div>
+            <span style={{color:"#6B7A99",fontSize:18}}>{openPrev[rt.id]?"▲":"▼"}</span>
+          </button>
+          {openPrev[rt.id]&&(<div style={{border:"1px solid #DDE4F0",borderTop:"none",borderRadius:"0 0 10px 10px",padding:"12px 8px",background:"#fff"}}>
+            <RoutineDisplay routine={rt} exercises={exercises}/>
+          </div>)}
+        </div>))}
+      </div>)}
+    </div>)}
   </div>);
 }
 
@@ -1320,7 +1400,7 @@ export default function App(){
   if(isT){
     if(page==="dashboard")content=<Dashboard users={users} routines={routines}/>;
     else if(page==="clients")content=<ClientsPage users={users} setUsers={setUsers} routines={routines} measurements={measurements} setMeasurements={setMeasurements}/>;
-    else if(page==="routines")content=<RoutinesPage routines={routines} setRoutines={setRoutines} users={users} exercises={exercises}/>;
+    else if(page==="routines")content=<RoutinesPage routines={routines} setRoutines={setRoutines} users={users} setUsers={setUsers} exercises={exercises}/>;
     else if(page==="exercises")content=<ExercisesPage exercises={exercises} setExercises={setExercises}/>;
     else if(page==="admins")content=<AdminsPage/>;
   } else {
