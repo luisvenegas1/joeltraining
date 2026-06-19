@@ -1,4 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import {
+  getUsers, upsertUser, deleteUser,
+  getExercises, upsertExercise, deleteExercise,
+  getRoutines, upsertRoutine, deleteRoutine,
+  getMeasurements, upsertMeasurement, deleteMeasurement,
+} from "./db";
 
 // ══ CONSTANTS ══
 
@@ -25,102 +31,8 @@ const MEASUREMENT_FIELDS = [
 
 const INITIAL_TRAINER = {id:"t1",username:"johel",password:"johel123",name:"Johel Herrera",role:"trainer"};
 
-const ALL_EXERCISES = [
-  {id:"ex1",name:"Hipthrust con mancuerna",videoUrl:"https://www.youtube.com/watch?v=_DUsaQwJioc",muscleGroup:"Glúteos",type:"normal",equipment:"Mancuerna"},
-  {id:"ex2",name:"Abducción de cadera con bandas",videoUrl:"https://www.youtube.com/watch?v=GoeqVgJdWak",muscleGroup:"Glúteos",type:"normal",equipment:"Liga/Banda"},
-  {id:"ex3",name:"Sentadilla sumo con mancuerna",videoUrl:"https://www.youtube.com/shorts/Jo1DFefVdrg",muscleGroup:"Piernas",type:"normal",equipment:"Mancuerna"},
-  {id:"ex4",name:"Peso muerto rumano con mancuernas",videoUrl:"https://www.youtube.com/shorts/KF3QpW6-jto",muscleGroup:"Piernas",type:"normal",equipment:"Mancuerna"},
-  {id:"ex5",name:"Desplante Búlgaro",videoUrl:"https://www.youtube.com/shorts/NM37QWT6C5A",muscleGroup:"Piernas",type:"normal",equipment:"Ninguno"},
-  {id:"ex6",name:"Sentadilla Isométrica con peso",videoUrl:"https://www.youtube.com/shorts/r6oViL7srpY",muscleGroup:"Piernas",type:"normal",equipment:"Mancuerna"},
-  {id:"ex7",name:"Caminata lateral con banda",videoUrl:"https://www.youtube.com/shorts/6qAii6gapvU",muscleGroup:"Glúteos",type:"normal",equipment:"Liga/Banda"},
-  {id:"ex8",name:"Jalón amplio con barra",videoUrl:"https://www.youtube.com/shorts/_2MfZAj98tk",muscleGroup:"Espalda",type:"normal",equipment:"Barra"},
-  {id:"ex9",name:"Remo con mancuernas",videoUrl:"https://www.youtube.com/shorts/WkFX6_GxAs8",muscleGroup:"Espalda",type:"normal",equipment:"Mancuerna"},
-  {id:"ex10",name:"Crunches Bicicleta",videoUrl:"https://www.youtube.com/shorts/_I2Fiy7ueNw",muscleGroup:"Abdomen",type:"normal",equipment:"Ninguno"},
-  {id:"ex11",name:"Pull down con cuerda",videoUrl:"https://www.youtube.com/shorts/bON_FlYHh8c",muscleGroup:"Espalda",type:"normal",equipment:"Otro"},
-  {id:"ex12",name:"Face pull",videoUrl:"https://www.youtube.com/shorts/RSmMpmxiz6k",muscleGroup:"Hombros",type:"normal",equipment:"Liga/Banda"},
-  {id:"ex13",name:"Press militar con mancuernas",videoUrl:"https://www.youtube.com/shorts/H3JwesAsumc",muscleGroup:"Hombros",type:"normal",equipment:"Mancuerna"},
-  {id:"ex14",name:"Sentadilla Goblet",videoUrl:"https://www.youtube.com/shorts/MSmHm4f-qIc",muscleGroup:"Piernas",type:"normal",equipment:"Mancuerna"},
-  {id:"ex15",name:"Extensión de piernas en máquina",videoUrl:"https://www.youtube.com/shorts/PzIfB9MiiX8",muscleGroup:"Piernas",type:"normal",equipment:"Otro"},
-  {id:"ex16",name:"Prensa de piernas 180 grados",videoUrl:"https://www.youtube.com/shorts/Y_u8jgMKiOI",muscleGroup:"Piernas",type:"normal",equipment:"Otro"},
-  {id:"ex17",name:"Step up en banco o cajón",videoUrl:"https://www.youtube.com/shorts/aMdIEka3uII",muscleGroup:"Piernas",type:"normal",equipment:"Ninguno"},
-  {id:"ex18",name:"Sentadillas de pulso",videoUrl:"",muscleGroup:"Piernas",type:"normal",equipment:"Ninguno"},
-  {id:"ex19",name:"Jalón unilateral en polea alta",videoUrl:"https://www.youtube.com/shorts/hR_D45hhNhA",muscleGroup:"Espalda",type:"normal",equipment:"Otro"},
-  {id:"ex20",name:"Press de pecho acostado",videoUrl:"https://www.youtube.com/watch?v=y9XAsTx3XxQ",muscleGroup:"Pecho",type:"normal",equipment:"Mancuerna"},
-  {id:"ex21",name:"Remo con mancuerna Supino",videoUrl:"https://www.youtube.com/shorts/t15QajtT_bE",muscleGroup:"Espalda",type:"normal",equipment:"Mancuerna"},
-  {id:"ex22",name:"Elevación lateral con mancuernas",videoUrl:"https://www.youtube.com/shorts/vwfaFckD1JI",muscleGroup:"Hombros",type:"normal",equipment:"Mancuerna"},
-  {id:"ex23",name:"Elevación frontal con mancuerna",videoUrl:"https://www.youtube.com/shorts/IXbvmzQTSvU",muscleGroup:"Hombros",type:"normal",equipment:"Mancuerna"},
-  {id:"ex24",name:"Aperturas inversas con mancuernas",videoUrl:"https://www.youtube.com/shorts/MHogGITTTBo",muscleGroup:"Hombros",type:"normal",equipment:"Mancuerna"},
-  {id:"ex25",name:"Thrusters con Kettlebell",videoUrl:"https://www.youtube.com/shorts/07rZz0Jv8Xo",muscleGroup:"Full Body",type:"normal",equipment:"Kettlebell"},
-  {id:"ex26",name:"Peso muerto + remo",videoUrl:"https://www.youtube.com/shorts/1nhoi20AouI",muscleGroup:"Full Body",type:"normal",equipment:"Mancuerna"},
-  {id:"ex27",name:"ManMakers",videoUrl:"https://www.youtube.com/shorts/jzlV_9BOFr8",muscleGroup:"Full Body",type:"normal",equipment:"Mancuerna"},
-  {id:"ex28",name:"Desplante caminando con curl mancuernas",videoUrl:"https://www.youtube.com/shorts/P7X40GzI14c",muscleGroup:"Piernas",type:"normal",equipment:"Mancuerna"},
-  {id:"ex29",name:"Plancha alta con remo",videoUrl:"https://www.youtube.com/shorts/DZ17Zeu274s",muscleGroup:"Core",type:"normal",equipment:"Mancuerna"},
-  {id:"ex30",name:"Plancha",videoUrl:"https://www.youtube.com/shorts/uxPlAbWFUDs",muscleGroup:"Core",type:"normal",equipment:"Ninguno"},
-  {id:"ex31",name:"Desplante con mancuernas",videoUrl:"https://www.youtube.com/shorts/N2A6qU5dMBk",muscleGroup:"Piernas",type:"normal",equipment:"Mancuerna"},
-  {id:"ex32",name:"Dead Bug con mancuernas",videoUrl:"https://www.youtube.com/shorts/VAVrsPX9GHY",muscleGroup:"Core",type:"normal",equipment:"Mancuerna"},
-  {id:"ex33",name:"Dumbbell RDL",videoUrl:"https://www.youtube.com/shorts/CBOhr6H7BEY",muscleGroup:"Piernas",type:"normal",equipment:"Mancuerna"},
-  {id:"ex34",name:"Step up con rodillas alta",videoUrl:"https://www.youtube.com/shorts/GPMIFk0D-og",muscleGroup:"Piernas",type:"normal",equipment:"Ninguno"},
-  {id:"ex35",name:"Pallof Press",videoUrl:"https://www.youtube.com/watch?v=o_CxFP4FJhA",muscleGroup:"Core",type:"normal",equipment:"Liga/Banda"},
-  {id:"ex36",name:"Farmer Carry con 1 kettlebell",videoUrl:"https://www.youtube.com/shorts/sP8r6aCRUe4",muscleGroup:"Full Body",type:"normal",equipment:"Kettlebell"},
-  {id:"ex37",name:"Plancha lateral",videoUrl:"https://www.youtube.com/shorts/x2gzR9zzSCw",muscleGroup:"Core",type:"normal",equipment:"Ninguno"},
-  {id:"ex38",name:"Landmine Press Unilateral",videoUrl:"https://www.youtube.com/watch?v=PFIn5PFiajQ",muscleGroup:"Pecho",type:"normal",equipment:"Barra"},
-  {id:"ex39",name:"Press de banca plano Unilateral",videoUrl:"https://www.youtube.com/shorts/Ofs7d07Aguo",muscleGroup:"Pecho",type:"normal",equipment:"Mancuerna"},
-  {id:"ex40",name:"Bear plank con toque de hombros",videoUrl:"https://www.youtube.com/shorts/IzJhfrGQsjY",muscleGroup:"Core",type:"normal",equipment:"Ninguno"},
-  {id:"ex41",name:"Press de banco inclinado Unilateral",videoUrl:"https://www.youtube.com/watch?v=RZv05oS16uQ",muscleGroup:"Pecho",type:"normal",equipment:"Mancuerna"},
-  {id:"ex42",name:"Bottom-up Carry",videoUrl:"https://www.youtube.com/results?search_query=Bottom-up+carry",muscleGroup:"Full Body",type:"normal",equipment:"Kettlebell"},
-  {id:"ex43",name:"Wall Slides con banda",videoUrl:"https://www.youtube.com/shorts/1Nltd3EY3Wc",muscleGroup:"Hombros",type:"normal",equipment:"Liga/Banda"},
-  {id:"ex44",name:"Pallof Press overhead",videoUrl:"https://www.youtube.com/shorts/knoBudRYK8E",muscleGroup:"Core",type:"normal",equipment:"Liga/Banda"},
-  {id:"ex45",name:"Push up inclinado",videoUrl:"https://www.youtube.com/shorts/7f8JOu0i1cQ",muscleGroup:"Pecho",type:"normal",equipment:"Ninguno"},
-  {id:"ex46",name:"Bird Dogs",videoUrl:"https://www.youtube.com/shorts/vtwhC3tfVow",muscleGroup:"Core",type:"normal",equipment:"Ninguno"},
-  {id:"ex47",name:"Dead Bug con Banda",videoUrl:"https://www.youtube.com/shorts/iW_CtYtzbeU",muscleGroup:"Core",type:"normal",equipment:"Liga/Banda"},
-  {id:"ex48",name:"Remo con Kettlebell",videoUrl:"https://www.youtube.com/shorts/TxGJXHXQzus",muscleGroup:"Espalda",type:"normal",equipment:"Kettlebell"},
-  {id:"ex49",name:"Jalón cerrado con triángulo",videoUrl:"https://www.youtube.com/shorts/ySLFHxmJ_Sc",muscleGroup:"Espalda",type:"normal",equipment:"Otro"},
-  {id:"ex50",name:"Y Raises",videoUrl:"https://www.youtube.com/shorts/BvxuWwQOj_E",muscleGroup:"Hombros",type:"normal",equipment:"Mancuerna"},
-  {id:"ex51",name:"Extensión Externa hombro",videoUrl:"https://www.youtube.com/shorts/Nhq49UJefwI",muscleGroup:"Hombros",type:"normal",equipment:"Liga/Banda"},
-  {id:"ex52",name:"Escapular Push ups",videoUrl:"https://www.youtube.com/shorts/SBPRhZI2RkI",muscleGroup:"Pecho",type:"normal",equipment:"Ninguno"},
-  {id:"ex53",name:"Farmer carry",videoUrl:"https://www.youtube.com/watch?v=ecBlIjSX_LY",muscleGroup:"Full Body",type:"normal",equipment:"Mancuerna"},
-  {id:"ex54",name:"Thruster Landmine Unilateral",videoUrl:"https://www.youtube.com/watch?v=G23fLqjKgYA",muscleGroup:"Full Body",type:"normal",equipment:"Barra"},
-  {id:"ex55",name:"Step up Press unilateral",videoUrl:"https://www.youtube.com/shorts/4WLrdl3AhCE",muscleGroup:"Piernas",type:"normal",equipment:"Mancuerna"},
-  {id:"ex56",name:"Carry Hold",videoUrl:"https://www.youtube.com/shorts/bpA8xewmASc",muscleGroup:"Full Body",type:"normal",equipment:"Kettlebell"},
-  {id:"ex57",name:"Desplantes con mancuernas para atrás",videoUrl:"https://www.youtube.com/shorts/-3TJqBXHyuI",muscleGroup:"Piernas",type:"normal",equipment:"Mancuerna"},
-  {id:"ex58",name:"Push up Elevado",videoUrl:"https://www.youtube.com/shorts/xEoEjCHcCQ4",muscleGroup:"Pecho",type:"normal",equipment:"Ninguno"},
-  {id:"ex59",name:"Pallof con Rotación",videoUrl:"https://www.youtube.com/shorts/XJkm_PU_ztQ",muscleGroup:"Core",type:"normal",equipment:"Liga/Banda"},
-  {id:"ex60",name:"Sentadilla con mancuernas",videoUrl:"https://www.youtube.com/shorts/OwWCkwdATnE",muscleGroup:"Piernas",type:"normal",equipment:"Mancuerna"},
-  {id:"ex61",name:"Push ups",videoUrl:"https://www.youtube.com/shorts/TvF4RpRzQQw",muscleGroup:"Pecho",type:"normal",equipment:"Ninguno"},
-  {id:"ex62",name:"Escaladores",videoUrl:"https://www.youtube.com/shorts/V0UoH5TG6fo",muscleGroup:"Core",type:"normal",equipment:"Ninguno"},
-  {id:"ex63",name:"Press inclinado con mancuernas",videoUrl:"https://www.youtube.com/shorts/ZaNyRjpoki8",muscleGroup:"Pecho",type:"normal",equipment:"Mancuerna"},
-  {id:"ex64",name:"Patada de tríceps con mancuernas",videoUrl:"https://www.youtube.com/shorts/hg6jySXCaT0",muscleGroup:"Tríceps",type:"normal",equipment:"Mancuerna"},
-  {id:"ex65",name:"Hipthrust + Press mancuernas",videoUrl:"https://www.youtube.com/shorts/66GvvbTwvMo",muscleGroup:"Glúteos",type:"normal",equipment:"Mancuerna"},
-  {id:"ex66",name:"Pájaros con Mancuernas",videoUrl:"https://www.youtube.com/shorts/01MSKQkvxCI",muscleGroup:"Hombros",type:"normal",equipment:"Mancuerna"},
-  {id:"ex67",name:"Sentadilla con Saltos",videoUrl:"https://www.youtube.com/shorts/n1df4ASFeZU",muscleGroup:"Piernas",type:"normal",equipment:"Ninguno"},
-  {id:"ex68",name:"Elevación al mentón con mancuernas",videoUrl:"https://www.youtube.com/shorts/rPkME2cX5sw",muscleGroup:"Hombros",type:"normal",equipment:"Mancuerna"},
-  {id:"ex69",name:"Curl alternado con mancuernas",videoUrl:"https://www.youtube.com/shorts/e9nzjkmPRXY",muscleGroup:"Bíceps",type:"normal",equipment:"Mancuerna"},
-  {id:"ex70",name:"Pullover con mancuerna",videoUrl:"https://www.youtube.com/shorts/vKCQHaG0Rj0",muscleGroup:"Espalda",type:"normal",equipment:"Mancuerna"},
-  {id:"ex71",name:"Thrusters con mancuernas",videoUrl:"https://www.youtube.com/shorts/R_dbUKgKwJw",muscleGroup:"Full Body",type:"normal",equipment:"Mancuerna"},
-  {id:"ex72",name:"Plancha con toque de hombros",videoUrl:"https://www.youtube.com/shorts/VfwCQ14soUo",muscleGroup:"Core",type:"normal",equipment:"Ninguno"},
-  {id:"ex73",name:"Abdominal con mancuerna",videoUrl:"https://www.youtube.com/shorts/XydKaUcYx4M",muscleGroup:"Abdomen",type:"normal",equipment:"Mancuerna"},
-  {id:"ex74",name:"Giros Rusos con mancuernas",videoUrl:"https://www.youtube.com/shorts/Xvm7zSiFyak",muscleGroup:"Abdomen",type:"normal",equipment:"Mancuerna"},
-  // Stretching
-  {id:"str1",name:"Estiramiento cuádriceps de pie",videoUrl:"",muscleGroup:"Piernas",type:"stretching",equipment:"Ninguno"},
-  {id:"str2",name:"Estiramiento isquiotibiales sentado",videoUrl:"",muscleGroup:"Piernas",type:"stretching",equipment:"Ninguno"},
-  {id:"str3",name:"Estiramiento glúteos figura 4",videoUrl:"",muscleGroup:"Glúteos",type:"stretching",equipment:"Ninguno"},
-  {id:"str4",name:"Estiramiento pecho en pared",videoUrl:"",muscleGroup:"Pecho",type:"stretching",equipment:"Ninguno"},
-  {id:"str5",name:"Estiramiento hombros cruzado",videoUrl:"",muscleGroup:"Hombros",type:"stretching",equipment:"Ninguno"},
-  {id:"str6",name:"Estiramiento espalda baja (cobra)",videoUrl:"",muscleGroup:"Espalda",type:"stretching",equipment:"Ninguno"},
-  {id:"str7",name:"Estiramiento cadera (paloma)",videoUrl:"",muscleGroup:"Glúteos",type:"stretching",equipment:"Ninguno"},
-  {id:"str8",name:"Estiramiento pantorrilla en pared",videoUrl:"",muscleGroup:"Piernas",type:"stretching",equipment:"Ninguno"},
-  {id:"str9",name:"Estiramiento cuello lateral",videoUrl:"",muscleGroup:"Otro",type:"stretching",equipment:"Ninguno"},
-  {id:"str10",name:"Wall Slide (movilidad hombro)",videoUrl:"",muscleGroup:"Hombros",type:"stretching",equipment:"Ninguno"},
-  {id:"str11",name:"Extensión de hombro (péndulo)",videoUrl:"",muscleGroup:"Hombros",type:"stretching",equipment:"Ninguno"},
-  {id:"str12",name:"Press Hold hombro",videoUrl:"",muscleGroup:"Hombros",type:"stretching",equipment:"Kettlebell"},
-];
+const ALL_EXERCISES = []; // Ejercicios cargados desde Supabase
 
-const INITIAL_USERS = [
-  {id:"u1",username:"sofi",password:"123456",name:"Sofía",role:"user",phone:"",email:"",cedula:"",age:"",height:"",notes:"",
-    plan:{type:"Base",modality:"En Estudio",format:"Individual",startDate:"2025-01-01",endDate:"2025-12-31",price:"",status:"Activo"}},
-  {id:"u2",username:"tito",password:"123456",name:"Tito",role:"user",phone:"",email:"",cedula:"",age:"",height:"",notes:"",
-    plan:{type:"Elite",modality:"En Estudio",format:"Pareja",startDate:"2025-01-01",endDate:"2025-12-31",price:"",status:"Activo"}},
-];
 
 // ═══════════════════════════════════════════════════════
 // UTILITIES
@@ -428,7 +340,10 @@ function LoginPage({onLogin,trainer,users}){
     const adm=admins.find(a=>a.username.toLowerCase()===u.toLowerCase()&&a.password===p);
     if(adm){onLogin({...adm,role:"trainer"});return}
     const user=users.find(x=>x.username.toLowerCase()===u.toLowerCase()&&x.password===p);
-    if(user){onLogin(user);return}
+    if(user){
+      if(user.disabled){setErr("Tu cuenta está deshabilitada. Contactá a Johel para más información.");return;}
+      onLogin(user);return;
+    }
     setErr("Usuario o contraseña incorrectos");
   }
   return(<div className="login-page">
@@ -494,6 +409,19 @@ function Sidebar({user,page,setPage,onLogout}){
   );
 }
 
+// ── TOAST NOTIFICATION ──
+function Toast({msg,type,onDone}){
+  useEffect(()=>{const t=setTimeout(onDone,5000);return()=>clearTimeout(t)},[onDone]);
+  const bg=type==="ok"?"#2E7D32":type==="err"?"#E53935":"#1A5DC8";
+  const icon=type==="ok"?"✅":type==="err"?"❌":"ℹ️";
+  return(<div style={{position:"fixed",top:16,left:"50%",transform:"translateX(-50%)",zIndex:9999,background:bg,color:"#fff",borderRadius:10,padding:"12px 20px",display:"flex",alignItems:"center",gap:10,boxShadow:"0 4px 20px rgba(0,0,0,0.25)",fontFamily:"'Barlow',sans-serif",fontSize:13,fontWeight:600,minWidth:240,maxWidth:380,animation:"slideDown 0.3s ease"}}>
+    <span style={{fontSize:16}}>{icon}</span>
+    <span style={{flex:1}}>{msg}</span>
+    <button onClick={onDone} style={{background:"none",border:"none",color:"rgba(255,255,255,0.7)",cursor:"pointer",fontSize:16,padding:0,lineHeight:1}}>✕</button>
+    <style>{`@keyframes slideDown{from{opacity:0;transform:translateX(-50%) translateY(-12px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}`}</style>
+  </div>);
+}
+
 // ── EXERCISE PICKER MODALS ──
 function ExercisePicker({exercises,onPick,onClose}){
   const[search,setSearch]=useState("");const[filter,setFilter]=useState("Todos");
@@ -511,10 +439,12 @@ function StretchPicker({exercises,selected,onToggle,onClose}){
 
 // ── DASHBOARD ──
 function Dashboard({users,routines}){
-  const total=users.length;
-  const active=users.filter(u=>getPlanStatus(u.plan)==="Activo").length;
-  const expiring=users.filter(u=>{const d=daysLeft(u.plan?.endDate);return d!==null&&d>=0&&d<=30}).length;
-  const expired=users.filter(u=>getPlanStatus(u.plan)==="Vencido").length;
+  const enabled=users.filter(u=>!u.disabled);
+  const disabled=users.filter(u=>u.disabled);
+  const total=enabled.length;
+  const active=enabled.filter(u=>getPlanStatus(u.plan)==="Activo").length;
+  const expiring=enabled.filter(u=>{const d=daysLeft(u.plan?.endDate);return d!==null&&d>=0&&d<=30}).length;
+  const expired=enabled.filter(u=>getPlanStatus(u.plan)==="Vencido").length;
   return(<div>
     <div className="ph">
       <div><div className="pt">Dashboard</div><div className="ps">Panel de control</div></div>
@@ -525,10 +455,14 @@ function Dashboard({users,routines}){
       <div className="stat"><div className="sl">Vencidos</div><div className="sv" style={{color:"#E53935"}}>{expired}</div></div>
       <div className="stat"><div className="sl">Vencen pronto</div><div className="sv" style={{color:expiring>0?"#F57C00":"#6B7A99"}}>{expiring}</div></div>
     </div>
-    <div className="card" style={{padding:0,overflowX:"auto"}}>
+
+    <div className="card" style={{padding:0,overflowX:"auto",marginBottom:16}}>
+      <div style={{padding:"12px 16px 8px",fontWeight:700,fontSize:12,color:"#0B1F4B",textTransform:"uppercase",letterSpacing:1,borderBottom:"1px solid #DDE4F0"}}>
+        👥 Clientes habilitados ({enabled.length})
+      </div>
       <table className="tbl">
         <thead><tr><th>Cliente</th><th>Plan</th><th>Modalidad</th><th>Vence</th><th>Estado</th></tr></thead>
-        <tbody>{users.map(u=>{
+        <tbody>{enabled.map(u=>{
           const st=getPlanStatus(u.plan);
           const d=daysLeft(u.plan?.endDate);
           return(<tr key={u.id}>
@@ -538,9 +472,27 @@ function Dashboard({users,routines}){
             <td style={{fontSize:11}}>{fmtDate(u.plan?.endDate)}{d!==null&&d>=0&&d<=30&&<span style={{color:"#F57C00",fontWeight:700}}> ({d}d)</span>}</td>
             <td><span className={`badge ${st==="Activo"?"bd-green":st==="Vencido"?"bd-red":"bd-gray"}`}>{st}</span></td>
           </tr>);
-        })}{users.length===0&&<tr><td colSpan={5}><div className="empty"><div className="ico">👥</div><p>Sin clientes</p></div></td></tr>}</tbody>
+        })}{enabled.length===0&&<tr><td colSpan={5}><div className="empty"><div className="ico">👥</div><p>Sin clientes habilitados</p></div></td></tr>}</tbody>
       </table>
     </div>
+
+    {disabled.length>0&&<div className="card" style={{padding:0,overflowX:"auto"}}>
+      <div style={{padding:"12px 16px 8px",fontWeight:700,fontSize:12,color:"#9E9E9E",textTransform:"uppercase",letterSpacing:1,borderBottom:"1px solid #DDE4F0"}}>
+        🚫 Clientes deshabilitados ({disabled.length})
+      </div>
+      <table className="tbl">
+        <thead><tr><th>Cliente</th><th>Plan</th><th>Modalidad</th><th>Vence</th><th></th></tr></thead>
+        <tbody>{disabled.map(u=>{
+          return(<tr key={u.id} style={{opacity:0.6}}>
+            <td><strong>{u.name}</strong><br/><span style={{color:"#6B7A99",fontSize:10}}>@{u.username}</span></td>
+            <td><span className={`badge ${planColor(u.plan?.type)}`}>{u.plan?.type||"—"}</span></td>
+            <td><span className="badge bd-gray">{u.plan?.modality||"—"}</span></td>
+            <td style={{fontSize:11}}>{fmtDate(u.plan?.endDate)}</td>
+            <td><span className="badge bd-red">🚫 Deshabilitado</span></td>
+          </tr>);
+        })}</tbody>
+      </table>
+    </div>}
   </div>);
 }
 
@@ -589,51 +541,105 @@ function AdminsPage(){
 // ── PAYMENT MODULE ──
 function PaymentModule({client,setClient}){
   const[showPay,setShowPay]=useState(false);
+  const[editingPay,setEditingPay]=useState(null);
   const[period,setPeriod]=useState(1);
   const[payDate,setPayDate]=useState(new Date().toISOString().split("T")[0]);
   const[amount,setAmount]=useState(client.plan?.price||"");
   const[notes,setNotes]=useState("");
+  const[toast,setToast]=useState(null);
+  const ERR="Hubo un problema al guardar. Intentá de nuevo en unos minutos.";
   const payments=client.payments||[];
 
-  function registerPayment(){
-    const currentEnd=client.plan?.endDate;
-    const base=(currentEnd&&getPlanStatusFromEndDate(currentEnd)==="Activo")?currentEnd:payDate;
-    const newEnd=addMonths(base,period);
-    const pay={id:genId(),date:payDate,months:period,amount,notes,endDate:newEnd};
-    const newPlan={...client.plan,endDate:newEnd,startDate:client.plan?.startDate||payDate};
-    setClient({...client,plan:newPlan,payments:[pay,...payments]});
-    setShowPay(false);setNotes("");
+  function openNew(){
+    setEditingPay(null);
+    setPeriod(1);
+    setPayDate(new Date().toISOString().split("T")[0]);
+    setAmount(client.plan?.price||"");
+    setNotes("");
+    setShowPay(true);
+  }
+
+  function openEdit(p){
+    setEditingPay(p);
+    setPeriod(p.months||1);
+    setPayDate(p.date||new Date().toISOString().split("T")[0]);
+    setAmount(p.amount||"");
+    setNotes(p.notes||"");
+    setShowPay(true);
+  }
+
+  async function savePayment(){
+    try{
+      if(editingPay){
+        // Editar pago existente — recalcular endDate
+        const base=payDate;
+        const newEnd=addMonths(base,period);
+        const updated={...editingPay,date:payDate,months:period,amount,notes,endDate:newEnd};
+        const newPayments=payments.map(p=>p.id===editingPay.id?updated:p);
+        // Recalcular endDate del plan desde el pago más reciente
+        const sorted=[...newPayments].sort((a,b)=>new Date(b.date)-new Date(a.date));
+        const newPlan={...client.plan,endDate:sorted[0]?.endDate||client.plan?.endDate};
+        await setClient({...client,plan:newPlan,payments:newPayments});
+        setToast({msg:"Pago actualizado",type:"ok"});
+      } else {
+        const currentEnd=client.plan?.endDate;
+        const base=(currentEnd&&getPlanStatusFromEndDate(currentEnd)==="Activo")?currentEnd:payDate;
+        const newEnd=addMonths(base,period);
+        const pay={id:genId(),date:payDate,months:period,amount,notes,endDate:newEnd};
+        const newPlan={...client.plan,endDate:newEnd,startDate:client.plan?.startDate||payDate};
+        await setClient({...client,plan:newPlan,payments:[pay,...payments]});
+        setToast({msg:"Pago registrado correctamente",type:"ok"});
+      }
+      setShowPay(false);setNotes("");setEditingPay(null);
+    }catch(e){console.error(e);setToast({msg:ERR,type:"err"});}
+  }
+
+  async function delPayment(id){
+    if(!confirm("¿Eliminar este pago?"))return;
+    try{
+      const newPayments=payments.filter(p=>p.id!==id);
+      const sorted=[...newPayments].sort((a,b)=>new Date(b.date)-new Date(a.date));
+      const newPlan={...client.plan,endDate:sorted[0]?.endDate||""};
+      await setClient({...client,plan:newPlan,payments:newPayments});
+      setToast({msg:"Pago eliminado",type:"ok"});
+    }catch(e){console.error(e);setToast({msg:ERR,type:"err"});}
   }
 
   const st=getPlanStatus(client.plan);
   const dl=daysLeft(client.plan?.endDate);
+  const previewEnd=editingPay
+    ?fmtDate(addMonths(payDate,period))
+    :fmtDate(addMonths(client.plan?.endDate&&getPlanStatusFromEndDate(client.plan?.endDate)==="Activo"?client.plan.endDate:payDate,period));
 
   return(<div>
+    {toast&&<Toast msg={toast.msg} type={toast.type} onDone={()=>setToast(null)}/>}
     <div className="sa">
       <div>
         <span className={`badge ${st==="Activo"?"bd-green":st==="Vencido"?"bd-red":st==="Pausado"?"bd-yellow":"bd-gray"}`} style={{fontSize:12,padding:"4px 12px"}}>{st}</span>
         {dl!==null&&!client.plan?.paused&&<span style={{fontSize:11,color:"#6B7A99",marginLeft:8}}>{dl<0?`Venció hace ${Math.abs(dl)} días`:`${dl} días restantes`}</span>}
         {client.plan?.paused&&<span style={{fontSize:11,color:"#F57C00",marginLeft:8}}>Plan pausado</span>}
       </div>
-      <button className="btn btn-ok btn-sm" onClick={()=>setShowPay(true)}>💰 Registrar pago</button>
+      <button className="btn btn-ok btn-sm" onClick={openNew}>💰 Registrar pago</button>
     </div>
 
     {payments.length>0&&<div>
       <div style={{fontSize:10,fontWeight:700,color:"#6B7A99",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Historial de pagos</div>
-      {payments.slice(0,5).map(p=>{
+      {payments.map(p=>{
         const lbl=PAYMENT_PERIODS.find(x=>x.months===p.months)?.label||`${p.months} meses`;
-        return(<div key={p.id} className="pay-hist">
+        return(<div key={p.id} className="pay-hist" style={{display:"flex",alignItems:"center",gap:8}}>
           <span>💰</span>
           <div style={{flex:1}}>
             <div style={{fontWeight:700,fontSize:12}}>{fmtDate(p.date)} · {lbl}</div>
             <div style={{fontSize:10,color:"#6B7A99"}}>Válido hasta: {fmtDate(p.endDate)}{p.amount&&` · ₡${p.amount}`}{p.notes&&` · ${p.notes}`}</div>
           </div>
+          <button className="ibtn" onClick={()=>openEdit(p)} title="Editar">✏️</button>
+          <button className="ibtn d" onClick={()=>delPayment(p.id)} title="Eliminar">🗑</button>
         </div>);
       })}
     </div>}
     {payments.length===0&&<div style={{textAlign:"center",padding:16,color:"#6B7A99",fontSize:12}}>Sin pagos registrados — el plan está sin activar</div>}
 
-    {showPay&&<Modal title="Registrar pago" onClose={()=>setShowPay(false)}>
+    {showPay&&<Modal title={editingPay?"Editar pago":"Registrar pago"} onClose={()=>{setShowPay(false);setEditingPay(null);}}>
       <div className="fg"><label>Fecha de pago</label><input className="inp" type="date" value={payDate} onChange={e=>setPayDate(e.target.value)}/></div>
       <div className="fg"><label>Período pagado</label>
         {PAYMENT_PERIODS.map(p=>(<div key={p.months} className={`pay-row${period===p.months?" selected":""}`} onClick={()=>setPeriod(p.months)}>
@@ -648,9 +654,12 @@ function PaymentModule({client,setClient}){
         <div className="fg"><label>Notas</label><input className="inp" value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Opcional"/></div>
       </div>
       <div style={{background:"#EFF6FF",borderRadius:8,padding:10,fontSize:12,marginBottom:12,color:"#1A5DC8"}}>
-        ✅ Nuevo vencimiento: <strong>{fmtDate(addMonths(client.plan?.endDate&&getPlanStatusFromEndDate(client.plan?.endDate)==="Activo"?client.plan.endDate:payDate,period))}</strong>
+        {editingPay?"📅":"✅"} {editingPay?"Nuevo vencimiento estimado:":"Nuevo vencimiento:"} <strong>{previewEnd}</strong>
       </div>
-      <div style={{display:"flex",gap:8}}><button className="btn btn-ok" onClick={registerPayment}>Confirmar pago</button><button className="btn btn-g" onClick={()=>setShowPay(false)}>Cancelar</button></div>
+      <div style={{display:"flex",gap:8}}>
+        <button className="btn btn-ok" onClick={savePayment}>{editingPay?"Guardar cambios":"Confirmar pago"}</button>
+        <button className="btn btn-g" onClick={()=>{setShowPay(false);setEditingPay(null);}}>Cancelar</button>
+      </div>
     </Modal>}
   </div>);
 }
@@ -658,6 +667,16 @@ function PaymentModule({client,setClient}){
 // ── PLAN EDITOR ──
 function PlanEditor({client,onSave}){
   const[form,setForm]=useState(()=>({type:"Base",modality:"En Estudio",format:"Individual",startDate:"",endDate:"",price:"",notes:"",paused:false,pausedAt:null,...(client.plan||{})}));
+  const[toast,setToast]=useState(null);
+
+  async function handleSave(){
+    try{
+      await onSave(form);
+      setToast({msg:"Plan guardado correctamente",type:"ok"});
+    }catch(e){
+      setToast({msg:"Hubo un problema al guardar. Intentá de nuevo en unos minutos.",type:"err"});
+    }
+  }
 
   function handlePause(){
     if(!form.paused){
@@ -683,6 +702,7 @@ function PlanEditor({client,onSave}){
   const daysPausedSoFar=form.paused&&form.pausedAt?Math.ceil((new Date()-new Date(form.pausedAt+"T12:00:00"))/(1000*60*60*24)):0;
 
   return(<div className="card">
+    {toast&&<Toast msg={toast.msg} type={toast.type} onDone={()=>setToast(null)}/>}
     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:14,flexWrap:"wrap",gap:8}}>
       <div style={{fontWeight:700,fontSize:13}}>Configuración del plan</div>
       <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
@@ -708,7 +728,7 @@ function PlanEditor({client,onSave}){
     <div className="fg"><label>Notas</label><input className="inp" value={form.notes||""} onChange={e=>setForm({...form,notes:e.target.value})} placeholder="Descuento, acuerdo especial..."/></div>
 
     <div style={{borderTop:"1px solid #DDE4F0",paddingTop:12,marginTop:4,display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
-      <button className="btn btn-p" onClick={()=>onSave(form)}>💾 Guardar</button>
+      <button className="btn btn-p" onClick={handleSave}>💾 Guardar</button>
       <button
         className={`btn ${form.paused?"btn-ok":"btn-w"}`}
         onClick={handlePause}
@@ -725,24 +745,31 @@ function PlanEditor({client,onSave}){
 function MeasurementsTab({client,measurements,setMeasurements}){
   const blankForm={date:new Date().toISOString().split("T")[0],...Object.fromEntries(MEASUREMENT_FIELDS.map(f=>[f.key,""]))};
   const[showAdd,setShowAdd]=useState(false);
-  const[editingM,setEditingM]=useState(null); // measurement id being edited
+  const[editingM,setEditingM]=useState(null);
   const[mForm,setMForm]=useState(blankForm);
+  const[toast,setToast]=useState(null);
+  const ERR="Hubo un problema al guardar. Intentá de nuevo en unos minutos.";
   const clientMs=measurements.filter(m=>m.clientId===client.id).sort((a,b)=>new Date(b.date)-new Date(a.date));
   const latest=clientMs[0];
 
   function openAdd(){setMForm(blankForm);setEditingM(null);setShowAdd(true)}
   function openEdit(m){setMForm({date:m.date,...Object.fromEntries(MEASUREMENT_FIELDS.map(f=>[f.key,m[f.key]||""]))});setEditingM(m.id);setShowAdd(true)}
-  function save(){
-    if(editingM){
-      setMeasurements(measurements.map(m=>m.id===editingM?{...m,...mForm}:m));
-    } else {
-      setMeasurements([...measurements,{id:genId(),clientId:client.id,...mForm}]);
-    }
-    setShowAdd(false);setMForm(blankForm);setEditingM(null);
+  async function save(){
+    try{
+      if(editingM){await setMeasurements(measurements.map(m=>m.id===editingM?{...m,...mForm}:m));}
+      else{await setMeasurements([...measurements,{id:genId(),clientId:client.id,...mForm}]);}
+      setShowAdd(false);setMForm(blankForm);setEditingM(null);
+      setToast({msg:editingM?"Medición actualizada":"Medición registrada",type:"ok"});
+    }catch(e){console.error(e);setToast({msg:ERR,type:"err"});}
   }
-  function del(id){if(!confirm("¿Eliminar medición?"))return;setMeasurements(measurements.filter(m=>m.id!==id))}
+  async function del(id){
+    if(!confirm("¿Eliminar medición?"))return;
+    try{await setMeasurements(measurements.filter(m=>m.id!==id));setToast({msg:"Medición eliminada",type:"ok"});}
+    catch(e){console.error(e);setToast({msg:ERR,type:"err"});}
+  }
 
   return(<div>
+    {toast&&<Toast msg={toast.msg} type={toast.type} onDone={()=>setToast(null)}/>}
     <div className="sa">
       <div style={{fontWeight:700,fontSize:13}}>Última medición{latest?` — ${fmtDate(latest.date)}`:""}</div>
       <button className="btn btn-p btn-sm" onClick={openAdd}>+ Registrar</button>
@@ -801,8 +828,15 @@ function MultiChart({clientMs}){
 function HistoryTab({client,measurements,setMeasurements}){
   const clientMs=measurements.filter(m=>m.clientId===client.id).sort((a,b)=>new Date(a.date)-new Date(b.date));
   const clientMsDesc=[...clientMs].reverse();
-  function del(id){if(!confirm("¿Eliminar?"))return;setMeasurements(measurements.filter(m=>m.id!==id))}
+  const[toast,setToast]=useState(null);
+  const ERR="Hubo un problema al guardar. Intentá de nuevo en unos minutos.";
+  async function del(id){
+    if(!confirm("¿Eliminar?"))return;
+    try{await setMeasurements(measurements.filter(m=>m.id!==id));setToast({msg:"Registro eliminado",type:"ok"});}
+    catch(e){console.error(e);setToast({msg:ERR,type:"err"});}
+  }
   return(<div>
+    {toast&&<Toast msg={toast.msg} type={toast.type} onDone={()=>setToast(null)}/>}
     {clientMs.length>1&&<MultiChart clientMs={clientMs}/>}
     <div style={{fontWeight:700,fontSize:13,marginBottom:10}}>Historial ({clientMs.length})</div>
     {clientMsDesc.map(m=>(<div key={m.id} className="hist-row">
@@ -815,27 +849,89 @@ function HistoryTab({client,measurements,setMeasurements}){
 }
 
 // ── CLIENT DETAIL ──
-function ClientDetail({client,setClient,measurements,setMeasurements,routines,onBack}){
+function ClientDetail({client,setClient,measurements,setMeasurements,routines,onBack,onDelete,deleteConfirm,setDeleteConfirm,doDelete}){
   const[tab,setTab]=useState("info");
   const[showEditInfo,setShowEditInfo]=useState(false);
   const[cForm,setCForm]=useState({...client});
+  const[toast,setToast]=useState(null);
+  const ERR="Hubo un problema al guardar. Intentá de nuevo en unos minutos.";
 
-  function saveInfo(){setClient({...cForm});setShowEditInfo(false)}
-  function savePlan(plan){setClient({...client,plan})}
+  const[disableConfirm,setDisableConfirm]=useState(false);
+
+  async function saveInfo(){
+    try{await setClient({...cForm});setShowEditInfo(false);setToast({msg:"Datos actualizados",type:"ok"});}
+    catch(e){console.error(e);setToast({msg:ERR,type:"err"});}
+  }
+  async function savePlan(plan){
+    await setClient({...client,plan});
+  }
+  async function doToggleDisabled(){
+    const next=!client.disabled;
+    try{
+      await setClient({...client,disabled:next});
+      setDisableConfirm(false);
+      setToast({msg:next?"Usuario deshabilitado":"Usuario habilitado",type:"ok"});
+    }catch(e){console.error(e);setToast({msg:ERR,type:"err"});}
+  }
 
   const routine=routines.find(r=>r.userId===client.id);
   const dl=daysLeft(client.plan?.endDate);
   const age=client.dob?calcAge(client.dob):null;
 
   return(<div>
-    <button className="back-btn" onClick={onBack}>← Volver</button>
+    {toast&&<Toast msg={toast.msg} type={toast.type} onDone={()=>setToast(null)}/>}
+    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+      <button className="back-btn" style={{margin:0}} onClick={onBack}>← Volver</button>
+      <div style={{marginLeft:"auto",display:"flex",gap:6}}>
+        <button className={`btn btn-sm ${client.disabled?"btn-ok":"btn-w"}`} onClick={()=>setDisableConfirm(true)}>
+          {client.disabled?"✅ Habilitar":"🚫 Deshabilitar"}
+        </button>
+        <button className="btn btn-d btn-sm" onClick={onDelete}>🗑 Eliminar</button>
+      </div>
+    </div>
     <div className="ph">
       <div style={{display:"flex",alignItems:"center",gap:12}}>
-        <div style={{width:44,height:44,borderRadius:"50%",background:"#3A8EF6",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,fontWeight:800,color:"#fff",flexShrink:0}}>{initials(client.name)}</div>
-        <div><div className="pt" style={{fontSize:20}}>{client.name}</div><div className="ps">@{client.username}{age!==null&&` · ${age} años`}</div></div>
+        <div style={{width:44,height:44,borderRadius:"50%",background:client.disabled?"#9E9E9E":"#3A8EF6",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,fontWeight:800,color:"#fff",flexShrink:0}}>{initials(client.name)}</div>
+        <div>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <div className="pt" style={{fontSize:20}}>{client.name}</div>
+            {client.disabled&&<span className="badge bd-red" style={{fontSize:10}}>🚫 Deshabilitado</span>}
+          </div>
+          <div className="ps">@{client.username}{age!==null&&` · ${age} años`}</div>
+        </div>
       </div>
       {dl!==null&&dl>=0&&dl<=30&&<div className="warn-box" style={{margin:0,alignSelf:"center"}}>⚠ Plan vence en {dl}d</div>}
     </div>
+    {disableConfirm&&<Modal title={client.disabled?"Habilitar usuario":"Deshabilitar usuario"} onClose={()=>setDisableConfirm(false)}>
+      <div style={{textAlign:"center",padding:"8px 0 16px"}}>
+        <div style={{fontSize:44,marginBottom:12}}>{client.disabled?"✅":"🚫"}</div>
+        {client.disabled
+          ?<><div style={{fontSize:15,fontWeight:700,color:"#0B1F4B",marginBottom:8}}>¿Habilitar a {client.name}?</div>
+            <div style={{fontSize:13,color:"#6B7A99"}}>El usuario podrá volver a iniciar sesión en la app.</div></>
+          :<><div style={{fontSize:15,fontWeight:700,color:"#0B1F4B",marginBottom:8}}>¿Deshabilitar a {client.name}?</div>
+            <div style={{fontSize:13,color:"#E53935",marginBottom:4}}>El usuario <strong>no podrá iniciar sesión</strong> hasta que lo habilites nuevamente.</div>
+            <div style={{fontSize:12,color:"#6B7A99"}}>Sus datos y rutinas se conservan.</div></>
+        }
+      </div>
+      <div style={{display:"flex",gap:8,justifyContent:"center"}}>
+        <button className={`btn ${client.disabled?"btn-ok":"btn-w"}`} onClick={doToggleDisabled}>
+          {client.disabled?"Sí, habilitar":"Sí, deshabilitar"}
+        </button>
+        <button className="btn btn-g" onClick={()=>setDisableConfirm(false)}>Cancelar</button>
+      </div>
+    </Modal>}
+    {deleteConfirm&&<Modal title="⚠️ Eliminar cliente" onClose={()=>setDeleteConfirm(null)}>
+      <div style={{textAlign:"center",padding:"8px 0 16px"}}>
+        <div style={{fontSize:40,marginBottom:12}}>🗑️</div>
+        <div style={{fontSize:15,fontWeight:700,color:"#0B1F4B",marginBottom:8}}>¿Eliminar a {deleteConfirm.name}?</div>
+        <div style={{fontSize:13,color:"#E53935",marginBottom:4}}>Esta acción <strong>no se puede deshacer</strong>.</div>
+        <div style={{fontSize:12,color:"#6B7A99"}}>Se eliminarán todos sus datos, rutinas asignadas y mediciones.</div>
+      </div>
+      <div style={{display:"flex",gap:8,justifyContent:"center"}}>
+        <button className="btn btn-d" onClick={doDelete}>Sí, eliminar</button>
+        <button className="btn btn-g" onClick={()=>setDeleteConfirm(null)}>Cancelar</button>
+      </div>
+    </Modal>}
     <div className="tabs">
       {[["info","👤 Info"],["plan","💳 Plan"],["payments","💰 Pagos"],["measurements","📊 Medición"],["history","📈 Historial"]].map(([id,lbl])=>(<div key={id} className={`tab${tab===id?" active":""}`} onClick={()=>setTab(id)}>{lbl}</div>))}
     </div>
@@ -870,44 +966,78 @@ function ClientDetail({client,setClient,measurements,setMeasurements,routines,on
 }
 
 // ── CLIENTS LIST ──
-function ClientsPage({users,setUsers,routines,measurements,setMeasurements}){
-  const[detail,setDetail]=useState(null);
+function ClientsPage({users,setUsers,routines,measurements,setMeasurements,onSelectClient,selectedClientId}){
+  const[detail,setDetail]=useState(()=>selectedClientId?users.find(u=>u.id===selectedClientId)||null:null);
   const[showAdd,setShowAdd]=useState(false);
-  const[form,setForm]=useState({name:"",username:"",password:"",phone:"",email:"",cedula:"",dob:"",height:"",notes:""});
+  const[form,setForm]=useState({name:"",username:"",password:"",phone:"",email:"",cedula:"",dob:"",height:"",notes:"",plan:{type:"Base",modality:"En Estudio",format:"Individual",startDate:"",endDate:"",price:""}});
   const[err,setErr]=useState("");
+  const[deleteConfirm,setDeleteConfirm]=useState(null);
+  const[toast,setToast]=useState(null);
+  const[search,setSearch]=useState("");
+  const ERR="Hubo un problema al guardar. Intentá de nuevo en unos minutos.";
 
-  function addClient(){
+  useEffect(()=>{if(!selectedClientId)setDetail(null);},[selectedClientId]);
+
+  async function addClient(){
     if(!form.name||!form.username||!form.password){setErr("Nombre, usuario y contraseña son requeridos");return}
     if(users.some(u=>u.username===form.username)){setErr("Ese usuario ya existe");return}
-    setUsers([...users,{id:genId(),...form,role:"user",plan:{type:"Base",modality:"En Estudio",format:"Individual",startDate:"",endDate:"",price:""},payments:[]}]);
-    setForm({name:"",username:"",password:"",phone:"",email:"",cedula:"",dob:"",height:"",notes:""});setErr("");setShowAdd(false);
+    try{
+      await setUsers([...users,{id:genId(),...form,role:"user",payments:[]}]);
+      setForm({name:"",username:"",password:"",phone:"",email:"",cedula:"",dob:"",height:"",notes:"",plan:{type:"Base",modality:"En Estudio",format:"Individual",startDate:"",endDate:"",price:""}});
+      setErr("");setShowAdd(false);
+      setToast({msg:"Cliente creado correctamente",type:"ok"});
+    }catch(e){console.error(e);setErr(ERR);}
   }
+
   function updateClient(u){setUsers(users.map(x=>x.id===u.id?u:x));setDetail(u)}
+  function confirmDelete(client){setDeleteConfirm(client)}
+  async function doDelete(){
+    if(!deleteConfirm)return;
+    try{
+      await setUsers(users.filter(u=>u.id!==deleteConfirm.id));
+      setDeleteConfirm(null);setDetail(null);
+      setToast({msg:"Cliente eliminado",type:"ok"});
+    }catch(e){console.error(e);setToast({msg:ERR,type:"err"});setDeleteConfirm(null);}
+  }
 
   if(detail){
     const live=users.find(u=>u.id===detail.id)||detail;
-    return<ClientDetail client={live} setClient={c=>updateClient({...live,...c})} measurements={measurements} setMeasurements={setMeasurements} routines={routines} onBack={()=>setDetail(null)}/>;
+    return<ClientDetail
+      client={live}
+      setClient={c=>updateClient({...live,...c})}
+      measurements={measurements}
+      setMeasurements={setMeasurements}
+      routines={routines}
+      onBack={()=>setDetail(null)}
+      onDelete={()=>confirmDelete(live)}
+      deleteConfirm={deleteConfirm}
+      setDeleteConfirm={setDeleteConfirm}
+      doDelete={doDelete}
+    />;
   }
   return(<div>
+    {toast&&<Toast msg={toast.msg} type={toast.type} onDone={()=>setToast(null)}/>}
     <div className="ph"><div><div className="pt">Clientes</div><div className="ps">{users.length} clientes</div></div><button className="btn btn-p" onClick={()=>setShowAdd(true)}>+ Nuevo</button></div>
+    <input className="inp" placeholder="🔍 Buscar por nombre o usuario..." value={search} onChange={e=>setSearch(e.target.value)} style={{marginBottom:10}}/>
     <div className="card" style={{padding:0,overflowX:"auto"}}>
       <table className="tbl">
         <thead><tr><th>Cliente</th><th>Plan</th><th>Modalidad</th><th>Vence</th><th>Estado</th></tr></thead>
-        <tbody>{users.map(u=>{
+        <tbody>{users.filter(u=>u.name.toLowerCase().includes(search.toLowerCase())||u.username.toLowerCase().includes(search.toLowerCase())).map(u=>{
           const st=getPlanStatus(u.plan);
           const dl=daysLeft(u.plan?.endDate);
           return(<tr key={u.id} style={{cursor:"pointer"}} onClick={()=>setDetail(u)}>
-            <td><div style={{display:"flex",alignItems:"center",gap:7}}><div style={{width:28,height:28,borderRadius:"50%",background:"#3A8EF6",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,color:"#fff",flexShrink:0}}>{initials(u.name)}</div><div><strong>{u.name}</strong><br/><span style={{color:"#6B7A99",fontSize:10}}>@{u.username}</span></div></div></td>
+            <td><div style={{display:"flex",alignItems:"center",gap:7}}><div style={{width:28,height:28,borderRadius:"50%",background:u.disabled?"#9E9E9E":"#3A8EF6",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,color:"#fff",flexShrink:0}}>{initials(u.name)}</div><div><strong>{u.name}</strong><br/><span style={{color:"#6B7A99",fontSize:10}}>@{u.username}</span></div></div></td>
             <td><span className={`badge ${planColor(u.plan?.type)}`}>{u.plan?.type||"—"}</span></td>
             <td><span className="badge bd-gray">{u.plan?.modality||"—"}</span></td>
             <td style={{fontSize:11}}>{fmtDate(u.plan?.endDate)}{dl!==null&&dl>=0&&dl<=15&&<span style={{color:"#F57C00",fontWeight:700}}> ⚠</span>}</td>
-            <td><span className={`badge ${st==="Activo"?"bd-green":st==="Vencido"?"bd-red":"bd-gray"}`}>{st}</span></td>
+            <td>{u.disabled?<span className="badge bd-red">🚫 Deshabilitado</span>:<span className={`badge ${st==="Activo"?"bd-green":st==="Vencido"?"bd-red":"bd-gray"}`}>{st}</span>}</td>
           </tr>);
-        })}{users.length===0&&<tr><td colSpan={5}><div className="empty"><div className="ico">👥</div><p>Sin clientes</p></div></td></tr>}</tbody>
+        })}{users.filter(u=>u.name.toLowerCase().includes(search.toLowerCase())||u.username.toLowerCase().includes(search.toLowerCase())).length===0&&<tr><td colSpan={5}><div className="empty"><div className="ico">🔍</div><p>{search?"Sin resultados para \""+search+"\"":"Sin clientes"}</p></div></td></tr>}</tbody>
       </table>
     </div>
     {showAdd&&<Modal title="Nuevo cliente" onClose={()=>setShowAdd(false)}>
       {err&&<div className="err">{err}</div>}
+      <div style={{fontSize:11,fontWeight:700,color:"#6B7A99",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Datos personales</div>
       <div className="fr2">
         <div className="fg"><label>Nombre *</label><input className="inp" value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="María García"/></div>
         <div className="fg"><label>Usuario *</label><input className="inp" value={form.username} onChange={e=>setForm({...form,username:e.target.value})} placeholder="maria.garcia"/></div>
@@ -918,8 +1048,34 @@ function ClientsPage({users,setUsers,routines,measurements,setMeasurements}){
         <div className="fg"><label>Fecha de nacimiento</label><input className="inp" type="date" value={form.dob} onChange={e=>setForm({...form,dob:e.target.value})}/></div>
         <div className="fg"><label>Estatura (cm)</label><input className="inp" type="number" value={form.height} onChange={e=>setForm({...form,height:e.target.value})}/></div>
       </div>
-      <div className="fg"><label>Notas</label><textarea className="ta" value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})} rows={2}/></div>
-      <div style={{display:"flex",gap:8}}><button className="btn btn-p" onClick={addClient}>Crear</button><button className="btn btn-g" onClick={()=>setShowAdd(false)}>Cancelar</button></div>
+      <div className="fg"><label>Notas internas</label><textarea className="ta" value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})} rows={2}/></div>
+      <div style={{borderTop:"1px solid #DDE4F0",paddingTop:12,marginTop:4}}>
+        <div style={{fontSize:11,fontWeight:700,color:"#6B7A99",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Plan</div>
+        <div className="fr3">
+          <div className="fg"><label>Tipo</label><select className="sel" value={form.plan.type} onChange={e=>setForm({...form,plan:{...form.plan,type:e.target.value}})}>{PLAN_TYPES.map(t=><option key={t}>{t}</option>)}</select></div>
+          <div className="fg"><label>Modalidad</label><select className="sel" value={form.plan.modality} onChange={e=>setForm({...form,plan:{...form.plan,modality:e.target.value}})}>{PLAN_MODALITIES.map(m=><option key={m}>{m}</option>)}</select></div>
+          <div className="fg"><label>Formato</label><select className="sel" value={form.plan.format} onChange={e=>setForm({...form,plan:{...form.plan,format:e.target.value}})}>{PLAN_FORMATS.map(f=><option key={f}>{f}</option>)}</select></div>
+        </div>
+        <div className="fr2">
+          <div className="fg"><label>Fecha inicio</label><input className="inp" type="date" value={form.plan.startDate} onChange={e=>setForm({...form,plan:{...form.plan,startDate:e.target.value}})}/></div>
+          <div className="fg"><label>Fecha vencimiento</label><input className="inp" type="date" value={form.plan.endDate} onChange={e=>setForm({...form,plan:{...form.plan,endDate:e.target.value}})}/></div>
+          <div className="fg"><label>Precio (₡/$)</label><input className="inp" type="number" value={form.plan.price} onChange={e=>setForm({...form,plan:{...form.plan,price:e.target.value}})}/></div>
+        </div>
+      </div>
+      <div style={{display:"flex",gap:8,marginTop:4}}><button className="btn btn-p" onClick={addClient}>Crear cliente</button><button className="btn btn-g" onClick={()=>setShowAdd(false)}>Cancelar</button></div>
+    </Modal>}
+
+    {deleteConfirm&&<Modal title="⚠️ Eliminar cliente" onClose={()=>setDeleteConfirm(null)}>
+      <div style={{textAlign:"center",padding:"8px 0 16px"}}>
+        <div style={{fontSize:40,marginBottom:12}}>🗑️</div>
+        <div style={{fontSize:15,fontWeight:700,color:"#0B1F4B",marginBottom:8}}>¿Eliminar a {deleteConfirm.name}?</div>
+        <div style={{fontSize:13,color:"#E53935",marginBottom:4}}>Esta acción <strong>no se puede deshacer</strong>.</div>
+        <div style={{fontSize:12,color:"#6B7A99"}}>Se eliminarán todos sus datos, rutinas asignadas y mediciones.</div>
+      </div>
+      <div style={{display:"flex",gap:8,justifyContent:"center"}}>
+        <button className="btn btn-d" onClick={doDelete}>Sí, eliminar</button>
+        <button className="btn btn-g" onClick={()=>setDeleteConfirm(null)}>Cancelar</button>
+      </div>
     </Modal>}
   </div>);
 }
@@ -927,13 +1083,30 @@ function ClientsPage({users,setUsers,routines,measurements,setMeasurements}){
 // ── EXERCISES ──
 function ExercisesPage({exercises,setExercises}){
   const[tab,setTab]=useState("normal");const[filter,setFilter]=useState("Todos");const[search,setSearch]=useState("");const[showAdd,setShowAdd]=useState(false);const[editing,setEditing]=useState(null);const[videoEx,setVideoEx]=useState(null);const[form,setForm]=useState({name:"",videoUrl:"",muscleGroup:"Piernas",type:"normal",equipment:"Ninguno"});
+  const[toast,setToast]=useState(null);
+  const ERR="Hubo un problema al guardar. Intentá de nuevo en unos minutos.";
   const list=exercises.filter(e=>e.type===tab&&(filter==="Todos"||e.muscleGroup===filter)&&e.name.toLowerCase().includes(search.toLowerCase()));
   function openAdd(){setForm({name:"",videoUrl:"",muscleGroup:"Piernas",type:tab,equipment:"Ninguno"});setEditing(null);setShowAdd(true)}
   function openEdit(ex){setForm({name:ex.name,videoUrl:ex.videoUrl||"",muscleGroup:ex.muscleGroup,type:ex.type,equipment:ex.equipment||"Ninguno"});setEditing(ex);setShowAdd(true)}
-  function save(){if(!form.name.trim())return;if(editing)setExercises(exercises.map(e=>e.id===editing.id?{...e,...form}:e));else setExercises([...exercises,{id:genId(),...form}]);setShowAdd(false)}
-  function del(id){if(!confirm("¿Eliminar?"))return;setExercises(exercises.filter(e=>e.id!==id))}
+  async function save(){
+    if(!form.name.trim())return;
+    try{
+      if(editing)await setExercises(exercises.map(e=>e.id===editing.id?{...e,...form}:e));
+      else await setExercises([...exercises,{id:genId(),...form}]);
+      setShowAdd(false);
+      setToast({msg:editing?"Ejercicio actualizado":"Ejercicio creado",type:"ok"});
+    }catch(e){console.error(e);setToast({msg:ERR,type:"err"});}
+  }
+  async function del(id){
+    if(!confirm("¿Eliminar ejercicio?"))return;
+    try{
+      await setExercises(exercises.filter(e=>e.id!==id));
+      setToast({msg:"Ejercicio eliminado",type:"ok"});
+    }catch(e){console.error(e);setToast({msg:ERR,type:"err"});}
+  }
   const groups=["Todos",...new Set(exercises.filter(e=>e.type===tab).map(e=>e.muscleGroup))].filter((v,i,a)=>a.indexOf(v)===i);
   return(<div>
+    {toast&&<Toast msg={toast.msg} type={toast.type} onDone={()=>setToast(null)}/>}
     <div className="ph"><div><div className="pt">Ejercicios</div><div className="ps">{exercises.length} ejercicios</div></div><button className="btn btn-p" onClick={openAdd}>+ Agregar</button></div>
     <div className="tabs">{["normal","stretching"].map(t=>(<div key={t} className={`tab${tab===t?" active":""}`} onClick={()=>{setTab(t);setFilter("Todos")}}>{t==="normal"?"🏋️ Ejercicios":"🧘 Estiramientos"}</div>))}</div>
     <input className="inp" placeholder="🔍 Buscar..." value={search} onChange={e=>setSearch(e.target.value)} style={{marginBottom:8}}/>
@@ -1059,18 +1232,34 @@ function RoutineEditor({routine,exercises,users,onSave,onBack}){
 function RoutinesPage({routines,setRoutines,users,setUsers,exercises}){
   const[editing,setEditing]=useState(null);
   const[filterUser,setFilterUser]=useState("__all__");
-  function saveRoutine(rt){
+  const[toast,setToast]=useState(null);
+  const ERR="Hubo un problema al guardar. Intentá de nuevo en unos minutos.";
+
+  async function saveRoutine(rt){
     const exists=routines.find(r=>r.id===rt.id);
     const now=new Date().toISOString();
-    if(exists)setRoutines(routines.map(r=>r.id===rt.id?{...rt,updatedAt:now}:r));
-    else setRoutines([...routines,{...rt,createdAt:now,updatedAt:now}]);
-    setEditing(null);
+    try{
+      if(exists)await setRoutines(routines.map(r=>r.id===rt.id?{...rt,updatedAt:now}:r));
+      else await setRoutines([...routines,{...rt,createdAt:now,updatedAt:now}]);
+      setEditing(null);
+      setToast({msg:exists?"Rutina actualizada":"Rutina creada",type:"ok"});
+    }catch(e){console.error(e);setToast({msg:ERR,type:"err"});}
   }
-  function del(id){if(!confirm("¿Eliminar rutina?"))return;setRoutines(routines.filter(r=>r.id!==id))}
-  function duplicate(rt){const now=new Date().toISOString();const newRt={...JSON.parse(JSON.stringify(rt)),id:genId(),title:rt.title+" (copia)",createdAt:now,updatedAt:now,userId:""};setRoutines([...routines,newRt]);}
-  function setActive(rt){
+  async function del(id){
+    if(!confirm("¿Eliminar rutina?"))return;
+    try{await setRoutines(routines.filter(r=>r.id!==id));setToast({msg:"Rutina eliminada",type:"ok"});}
+    catch(e){console.error(e);setToast({msg:ERR,type:"err"});}
+  }
+  async function duplicate(rt){
+    const now=new Date().toISOString();
+    const newRt={...JSON.parse(JSON.stringify(rt)),id:genId(),title:rt.title+" (copia)",createdAt:now,updatedAt:now,userId:""};
+    try{await setRoutines([...routines,newRt]);setToast({msg:"Rutina duplicada",type:"ok"});}
+    catch(e){console.error(e);setToast({msg:ERR,type:"err"});}
+  }
+  async function setActive(rt){
     if(!rt.userId)return;
-    setUsers(users.map(u=>u.id===rt.userId?{...u,activeRoutineId:rt.id}:u));
+    try{await setUsers(users.map(u=>u.id===rt.userId?{...u,activeRoutineId:rt.id}:u));setToast({msg:"Rutina activa actualizada",type:"ok"});}
+    catch(e){console.error(e);setToast({msg:ERR,type:"err"});}
   }
 
   // Clients that have at least one routine
@@ -1090,6 +1279,7 @@ function RoutinesPage({routines,setRoutines,users,setUsers,exercises}){
 
   if(editing!==null)return<RoutineEditor routine={editing==="__new__"?null:editing} exercises={exercises} users={users} onSave={saveRoutine} onBack={()=>setEditing(null)}/>;
   return(<div>
+    {toast&&<Toast msg={toast.msg} type={toast.type} onDone={()=>setToast(null)}/>}
     <div className="ph"><div><div className="pt">Rutinas</div><div className="ps">{filtered.length} rutina{filtered.length!==1?"s":""}</div></div><button className="btn btn-p" onClick={()=>setEditing("__new__")}>+ Nueva</button></div>
     <div style={{marginBottom:12,display:"flex",alignItems:"center",gap:10}}>
       <select value={filterUser} onChange={e=>setFilterUser(e.target.value)} style={{fontFamily:"'Barlow',sans-serif",fontSize:13,padding:"8px 12px",borderRadius:8,border:"1px solid #DDE4F0",background:"#fff",color:"#0B1F4B",flex:1,maxWidth:280}}>
@@ -1297,6 +1487,8 @@ function MyProfilePage({user,setUsers,users,measurements}){
   const[tab,setTab]=useState("info");
   const[editing,setEditing]=useState(false);
   const[form,setForm]=useState({...user});
+  const[toast,setToast]=useState(null);
+  const ERR="Hubo un problema al guardar. Intentá de nuevo en unos minutos.";
   const photoKey="jh_photo_"+user.id;
   const[photo,setPhoto]=useState(()=>localStorage.getItem(photoKey)||"");
 
@@ -1307,9 +1499,12 @@ function MyProfilePage({user,setUsers,users,measurements}){
   const clientMsDesc=[...clientMsAsc].reverse();
   const latest=clientMsDesc[0];
 
-  function saveProfile(){
-    setUsers(users.map(u=>u.id===user.id?{...u,...form}:u));
-    setEditing(false);
+  async function saveProfile(){
+    try{
+      await setUsers(users.map(u=>u.id===user.id?{...u,...form}:u));
+      setEditing(false);
+      setToast({msg:"Perfil actualizado",type:"ok"});
+    }catch(e){console.error(e);setToast({msg:ERR,type:"err"});}
   }
 
   function handlePhoto(e){
@@ -1321,6 +1516,7 @@ function MyProfilePage({user,setUsers,users,measurements}){
   }
 
   return(<div>
+    {toast&&<Toast msg={toast.msg} type={toast.type} onDone={()=>setToast(null)}/>}
     <div className="ph"><div className="pt">Mi Perfil</div></div>
     <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:18}}>
       <label className="avatar-wrap" style={{cursor:"pointer"}}>
@@ -1381,16 +1577,93 @@ function MyProfilePage({user,setUsers,users,measurements}){
 
 // ── ROOT APP ──
 export default function App(){
-  const[currentUser,setCurrentUser]=useState(null);
-  const[page,setPage]=useState("dashboard");
-  const[exercises,setExercises]=useLS("jh_ex_v3",ALL_EXERCISES);
-  const[users,setUsers]=useLS("jh_users_v3",INITIAL_USERS);
-  const[routines,setRoutines]=useLS("jh_routines_v3",[]);
-  const[measurements,setMeasurements]=useLS("jh_meas_v3",[]);
+  const[currentUser,setCurrentUserState]=useState(()=>{
+    try{const s=localStorage.getItem("jh_session");return s?JSON.parse(s):null;}catch{return null;}
+  });
+  const[page,setPage]=useState(()=>{
+    try{const s=localStorage.getItem("jh_session");const u=s?JSON.parse(s):null;return u?(u.role==="trainer"?"dashboard":"my-routine"):"dashboard";}catch{return "dashboard";}
+  });
+  const[exercises,setExercisesState]=useState([]);
+  const[users,setUsersState]=useState([]);
+  const[routines,setRoutinesState]=useState([]);
+  const[measurements,setMeasurementsState]=useState([]);
+  const[loading,setLoading]=useState(true);
+  const[dbError,setDbError]=useState(null);
   const trainer=INITIAL_TRAINER;
 
-  function login(u){setCurrentUser(u);setPage(u.role==="trainer"?"dashboard":"my-routine")}
-  function logout(){setCurrentUser(null);setPage("dashboard")}
+  useEffect(()=>{
+    async function load(){
+      try{
+        const[u,ex,rt,ms]=await Promise.all([getUsers(),getExercises(),getRoutines(),getMeasurements()]);
+        if(u.length>0)setUsersState(u);
+        if(ex.length>0)setExercisesState(ex);
+        setRoutinesState(rt);
+        setMeasurementsState(ms);
+      }catch(e){
+        console.error("Error cargando datos:",e);
+        setDbError("No se pudo conectar a la base de datos. Revisá tu conexión.");
+      }finally{setLoading(false);}
+    }
+    load();
+  },[]);
+
+  // Refrescar currentUser con datos actualizados de Supabase
+  useEffect(()=>{
+    if(currentUser&&currentUser.role!=="trainer"&&users.length>0){
+      const fresh=users.find(u=>u.id===currentUser.id);
+      if(fresh){setCurrentUserState(fresh);localStorage.setItem("jh_session",JSON.stringify(fresh));}
+    }
+  },[users]);
+
+  function login(u){
+    localStorage.setItem("jh_session",JSON.stringify(u));
+    setCurrentUserState(u);
+    setPage(u.role==="trainer"?"dashboard":"my-routine");
+  }
+  function logout(){
+    localStorage.removeItem("jh_session");
+    setCurrentUserState(null);
+    setPage("dashboard");
+  }
+  async function setUsers(newUsers){
+    const prev=users;
+    setUsersState(newUsers);
+    const deleted=prev.filter(p=>!newUsers.find(n=>n.id===p.id));
+    const changed=newUsers.filter(n=>{const old=prev.find(p=>p.id===n.id);return!old||JSON.stringify(old)!==JSON.stringify(n);});
+    try{await Promise.all([...changed.map(u=>upsertUser(u)),...deleted.map(u=>deleteUser(u.id))]);}
+    catch(e){console.error("Error guardando usuario:",e);throw e;}
+  }
+
+  async function setExercises(newExercises){
+    const prev=exercises;
+    setExercisesState(newExercises);
+    const deleted=prev.filter(p=>!newExercises.find(n=>n.id===p.id));
+    const changed=newExercises.filter(n=>{const old=prev.find(p=>p.id===n.id);return!old||JSON.stringify(old)!==JSON.stringify(n);});
+    try{await Promise.all([...changed.map(ex=>upsertExercise(ex)),...deleted.map(ex=>deleteExercise(ex.id))]);}
+    catch(e){console.error("Error guardando ejercicio:",e);throw e;}
+  }
+
+  async function setRoutines(newRoutines){
+    const prev=routines;
+    setRoutinesState(newRoutines);
+    const deleted=prev.filter(p=>!newRoutines.find(n=>n.id===p.id));
+    const changed=newRoutines.filter(n=>{const old=prev.find(p=>p.id===n.id);return!old||JSON.stringify(old)!==JSON.stringify(n);});
+    try{await Promise.all([...changed.map(rt=>upsertRoutine(rt)),...deleted.map(rt=>deleteRoutine(rt.id))]);}
+    catch(e){console.error("Error guardando rutina:",e);throw e;}
+  }
+
+  async function setMeasurements(newMs){
+    const prev=measurements;
+    setMeasurementsState(newMs);
+    const deleted=prev.filter(p=>!newMs.find(n=>n.id===p.id));
+    const changed=newMs.filter(n=>{const old=prev.find(p=>p.id===n.id);return!old||JSON.stringify(old)!==JSON.stringify(n);});
+    try{await Promise.all([...changed.map(m=>upsertMeasurement(m)),...deleted.map(m=>deleteMeasurement(m.id))]);}
+    catch(e){console.error("Error guardando medición:",e);throw e;}
+  }
+
+  if(loading)return(<><style>{STYLES}</style><div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",flexDirection:"column",gap:16,background:"#F4F6FB"}}><div style={{width:48,height:48,border:"4px solid #DDE4F0",borderTop:"4px solid #1A5DC8",borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/><div style={{fontFamily:"'Barlow',sans-serif",fontSize:14,color:"#6B7A99"}}>Cargando...</div><style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style></div></>);
+
+  if(dbError)return(<><style>{STYLES}</style><div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",flexDirection:"column",gap:12,background:"#F4F6FB",padding:24,textAlign:"center"}}><div style={{fontSize:32}}>⚠️</div><div style={{fontFamily:"'Barlow',sans-serif",fontSize:16,color:"#E53935",fontWeight:700}}>{dbError}</div><button className="btn btn-p" onClick={()=>window.location.reload()}>Reintentar</button></div></>);
 
   if(!currentUser)return(<><style>{STYLES}</style><LoginPage onLogin={login} trainer={trainer} users={users}/></>);
 
@@ -1399,7 +1672,7 @@ export default function App(){
   let content;
   if(isT){
     if(page==="dashboard")content=<Dashboard users={users} routines={routines}/>;
-    else if(page==="clients")content=<ClientsPage users={users} setUsers={setUsers} routines={routines} measurements={measurements} setMeasurements={setMeasurements}/>;
+    else if(page==="clients")content=<ClientsPage users={users} setUsers={setUsers} routines={routines} measurements={measurements} setMeasurements={setMeasurements} selectedClientId={null}/>;
     else if(page==="routines")content=<RoutinesPage routines={routines} setRoutines={setRoutines} users={users} setUsers={setUsers} exercises={exercises}/>;
     else if(page==="exercises")content=<ExercisesPage exercises={exercises} setExercises={setExercises}/>;
     else if(page==="admins")content=<AdminsPage/>;
