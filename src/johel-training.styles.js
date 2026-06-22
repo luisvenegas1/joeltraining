@@ -1,14 +1,14 @@
 export const STYLES=`
 @import url('https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;900&family=Barlow+Condensed:wght@600;700;900&display=swap');
 *{box-sizing:border-box;margin:0;padding:0}
-html,body{height:100%;font-family:'Barlow',sans-serif;background:#F5F7FC;color:#0D1B3E;-webkit-tap-highlight-color:transparent;overscroll-behavior:none;overflow-x:hidden;max-width:100vw}
+html,body{height:100%;font-family:'Barlow',sans-serif;background:#F5F7FC;color:#0D1B3E;-webkit-tap-highlight-color:transparent;overscroll-behavior:none;overflow-x:hidden;width:100%;position:relative}
 html{background:#F5F7FC !important}
-body{background:#F5F7FC !important}
-#root{background:#F5F7FC;min-height:100vh;min-height:100dvh}
-.app{display:flex;min-height:100vh;min-height:100dvh;background:#F5F7FC;max-width:100vw;overflow-x:hidden}
+body{background:#F5F7FC !important;width:100%;overflow-x:hidden}
+#root{background:#F5F7FC;min-height:100vh;min-height:100dvh;width:100%;overflow-x:hidden}
+.app{display:flex;min-height:100vh;min-height:100dvh;background:#F5F7FC;width:100%;overflow-x:hidden;position:relative}
 /* SIDEBAR */
 .sidebar{width:210px;min-width:210px;background:#0B1F4B;display:flex;flex-direction:column;position:fixed;top:0;left:0;height:100vh;height:100dvh;overflow-y:auto;z-index:200;transition:transform 0.2s}
-.main{flex:1;margin-left:210px;padding:20px;min-width:0;max-width:calc(100vw - 210px);background:#F5F7FC;min-height:100vh;min-height:100dvh;box-sizing:border-box}
+.main{flex:1;margin-left:210px;padding:20px;min-width:0;width:calc(100% - 210px);max-width:calc(100% - 210px);background:#F5F7FC;min-height:100vh;min-height:100dvh;overflow-x:hidden;box-sizing:border-box}
 .sb-logo{padding:16px 12px;border-bottom:1px solid rgba(255,255,255,0.1);display:flex;flex-direction:column;align-items:center;gap:4px}
 .sb-brand{font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:900;letter-spacing:1px;color:#fff;text-align:center;text-transform:uppercase}
 .sb-sub{font-size:8px;color:rgba(255,255,255,0.35);letter-spacing:2px;text-transform:uppercase}
@@ -165,7 +165,9 @@ label{font-size:11px;font-weight:700;color:#6B7A99;display:block;margin-bottom:4
   .nav-item.active{background:rgba(26,93,200,0.3);color:#4FC3F7}
   .nav-item span:not(.nav-icon){font-size:9px;letter-spacing:0}
   .nav-icon{font-size:20px;width:auto}
-  .main{margin-left:0;margin-bottom:60px;padding:12px 14px;overflow-x:hidden;max-width:100vw;width:100%;box-sizing:border-box}
+  .main{margin-left:0!important;width:100%!important;max-width:100%!important;margin-bottom:60px;padding:12px 14px;overflow-x:hidden;box-sizing:border-box}
+  .day-card{border-radius:12px;margin-bottom:10px;width:100%;box-sizing:border-box}
+  .card{border-radius:12px;width:100%;box-sizing:border-box}
   .fr2,.fr3{grid-template-columns:1fr}
   .mo{max-height:95vh;max-height:95dvh;border-radius:20px 20px 0 0;padding-bottom:40px}
   .mo-lg{border-radius:20px 20px 0 0;margin:auto 0 0 0}
@@ -174,8 +176,6 @@ label{font-size:11px;font-weight:700;color:#6B7A99;display:block;margin-bottom:4
   .pt{font-size:20px}
   .day-h{padding:12px 14px}
   .grp-b{padding:8px 10px}
-  .card{border-radius:12px;max-width:100%;box-sizing:border-box}
-  .day-card{border-radius:12px;margin-bottom:10px}
   .tbl-wrap{overflow-x:auto;border-radius:12px}
 }
 @media(min-width:641px){
