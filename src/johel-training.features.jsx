@@ -902,6 +902,7 @@ export function RoutinesPage({routines,setRoutines,users,setUsers,exercises}){
 export function GroupTimer({restSeconds}){
   const[secs,setSecs]=useState(0);const[running,setRunning]=useState(false);
   const[restLeft,setRestLeft]=useState(0);const[restActive,setRestActive]=useState(false);
+  const[fullscreen,setFullscreen]=useState(false);
   const intRef=useRef(null);const restRef=useRef(null);
 
   useEffect(()=>{
@@ -911,13 +912,18 @@ export function GroupTimer({restSeconds}){
   },[running]);
 
   useEffect(()=>{
-    if(restActive&&restLeft>0){restRef.current=setInterval(()=>setRestLeft(s=>{if(s<=1){clearInterval(restRef.current);setRestActive(false);return 0}return s-1}),1000)}
+    if(restActive&&restLeft>0){restRef.current=setInterval(()=>setRestLeft(s=>{if(s<=1){clearInterval(restRef.current);setRestActive(false);setFullscreen(false);return 0}return s-1}),1000)}
     else clearInterval(restRef.current);
     return()=>clearInterval(restRef.current);
   },[restActive,restLeft]);
 
-  function startRest(s){setRestLeft(s);setRestActive(true)}
+  function startRest(s){setRestLeft(s);setRestActive(true);setFullscreen(true)}
+  function toggleTimer(){setRunning(r=>!r);if(!running)setFullscreen(true)}
+  function reset(){setSecs(0);setRunning(false);setFullscreen(false)}
+  function stopRest(){setRestActive(false);setRestLeft(0);setFullscreen(false)}
   function fmt(s){const m=Math.floor(s/60);const sec=s%60;return`${String(m).padStart(2,"0")}:${String(sec).padStart(2,"0")}`}
+
+  const pct=restActive&&restLeft>0?((restSeconds-restLeft)/restSeconds)*100:0;
 
   return(<div className="timer-wrap">
     <div className="timer-box">
@@ -926,8 +932,8 @@ export function GroupTimer({restSeconds}){
         <div className="timer-disp">{fmt(secs)}</div>
       </div>
       <div style={{display:"flex",gap:5}}>
-        <button className="btn btn-sm" style={{background:running?"#E53935":"#2E7D32",color:"#fff",minHeight:36}} onClick={()=>setRunning(r=>!r)}>{running?"⏸":"▶"}</button>
-        <button className="btn btn-sm btn-g" style={{minHeight:36}} onClick={()=>{setSecs(0);setRunning(false)}}>↺</button>
+        <button className="btn btn-sm" style={{background:running?"#E53935":"#2E7D32",color:"#fff",minHeight:36}} onClick={toggleTimer}>{running?"⏸":"▶"}</button>
+        <button className="btn btn-sm" style={{background:"#4A5568",color:"#fff",minHeight:36}} onClick={reset}>↺</button>
       </div>
       <div style={{marginLeft:"auto",textAlign:"right"}}>
         <div className="timer-lbl">Descanso</div>
@@ -942,9 +948,54 @@ export function GroupTimer({restSeconds}){
       <div className="rest-active">
         <span style={{color:"#fff",fontSize:13,fontWeight:700}}>⏱ Descanso</span>
         <div className="rest-disp">{fmt(restLeft)}</div>
-        <button className="btn btn-xs" style={{background:"rgba(255,255,255,0.2)",color:"#fff",marginLeft:"auto"}} onClick={()=>{setRestActive(false);setRestLeft(0)}}>✕</button>
+        <button className="btn btn-xs" style={{background:"rgba(255,255,255,0.2)",color:"#fff",marginLeft:"auto"}} onClick={stopRest}>✕</button>
       </div>
     )}
+
+    {/* FULLSCREEN OVERLAY */}
+    {fullscreen&&<div style={{position:"fixed",inset:0,zIndex:9000,background:"rgba(10,20,60,0.97)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:32}}>
+      {restActive&&restLeft>0?(
+        <>
+          <div style={{fontSize:18,fontWeight:700,color:"rgba(255,255,255,0.6)",letterSpacing:4,textTransform:"uppercase"}}>⏱ Descanso</div>
+          <div style={{position:"relative",width:220,height:220}}>
+            <svg viewBox="0 0 220 220" style={{position:"absolute",inset:0,transform:"rotate(-90deg)"}}>
+              <circle cx="110" cy="110" r="100" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="10"/>
+              <circle cx="110" cy="110" r="100" fill="none" stroke="#4FC3F7" strokeWidth="10"
+                strokeDasharray={`${2*Math.PI*100}`}
+                strokeDashoffset={`${2*Math.PI*100*(1-pct/100)}`}
+                strokeLinecap="round"
+                style={{transition:"stroke-dashoffset 1s linear"}}/>
+            </svg>
+            <div style={{position:"absolute",inset:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center"}}>
+              <div style={{fontSize:72,fontWeight:900,color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",lineHeight:1}}>{fmt(restLeft)}</div>
+              <div style={{fontSize:13,color:"rgba(255,255,255,0.5)",marginTop:4}}>{restSeconds}s total</div>
+            </div>
+          </div>
+          <div style={{display:"flex",gap:12}}>
+            <button onClick={stopRest} style={{background:"rgba(255,255,255,0.15)",border:"none",color:"#fff",borderRadius:12,padding:"12px 28px",fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:"'Barlow',sans-serif"}}>✕ Cancelar</button>
+          </div>
+        </>
+      ):(
+        <>
+          <div style={{fontSize:18,fontWeight:700,color:"rgba(255,255,255,0.6)",letterSpacing:4,textTransform:"uppercase"}}>Cronómetro</div>
+          <div style={{fontSize:96,fontWeight:900,color:"#fff",fontFamily:"'Barlow Condensed',sans-serif",lineHeight:1,letterSpacing:2}}>{fmt(secs)}</div>
+          <div style={{display:"flex",gap:12}}>
+            <button onClick={toggleTimer} style={{background:running?"#E53935":"#2E7D32",border:"none",color:"#fff",borderRadius:12,padding:"14px 36px",fontSize:18,fontWeight:700,cursor:"pointer",fontFamily:"'Barlow',sans-serif",minWidth:130}}>
+              {running?"⏸ Pausar":"▶ Iniciar"}
+            </button>
+            <button onClick={reset} style={{background:"#4A5568",border:"none",color:"#fff",borderRadius:12,padding:"14px 24px",fontSize:18,fontWeight:700,cursor:"pointer",fontFamily:"'Barlow',sans-serif"}}>↺</button>
+          </div>
+          <div style={{display:"flex",gap:10,marginTop:8}}>
+            {[restSeconds,30,60].filter((v,i,a)=>a.indexOf(v)===i).map(s=>(
+              <button key={s} onClick={()=>startRest(s)} style={{background:"#1A5DC8",border:"none",color:"#fff",borderRadius:10,padding:"10px 20px",fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"'Barlow',sans-serif"}}>{s}s descanso</button>
+            ))}
+          </div>
+          <button onClick={()=>setFullscreen(false)} style={{background:"none",border:"1px solid rgba(255,255,255,0.2)",color:"rgba(255,255,255,0.5)",borderRadius:10,padding:"8px 20px",fontSize:13,cursor:"pointer",fontFamily:"'Barlow',sans-serif",marginTop:8}}>
+            Minimizar
+          </button>
+        </>
+      )}
+    </div>}
   </div>);
 }
 
