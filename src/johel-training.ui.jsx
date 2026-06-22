@@ -18,6 +18,16 @@ export function VideoModal({name,url,onClose}){
   return(<Modal title={name} onClose={onClose}>{embed?(<div style={{position:"relative",paddingBottom:"56.25%",height:0,overflow:"hidden",borderRadius:8}}><iframe src={embed} style={{position:"absolute",top:0,left:0,width:"100%",height:"100%",border:"none",borderRadius:8}} allow="accelerometer;autoplay;clipboard-write;encrypted-media;gyroscope;picture-in-picture" allowFullScreen title={name}/></div>):<div className="empty"><div className="ico">🎬</div><p>Sin video</p></div>}</Modal>);
 }
 
+// ── APP FOOTER ──
+export function AppFooter(){
+  return(
+    <div className="main-footer">
+      © 2026 Johel Herrera · Strength | Discipline | Evolution · Todos los derechos reservados<br/>
+      · Desarrollado por <a href="https://wa.me/50688238325" target="_blank" rel="noreferrer" style={{color:"inherit",textDecoration:"underline",fontWeight:700}}>Luis Diego Venegas</a>
+    </div>
+  );
+}
+
 // ── LOGIN ──
 
 export function SobreJohel({onClose}){
@@ -91,10 +101,9 @@ export function LoginPage({onLogin,users}){
         </button>
       </div>
     </div>
+    <AppFooter/>
   </div>);
 }
-
-// ── SIDEBAR ──
 export function Sidebar({user,page,setPage,onLogout}){
   const isT=user.role==="trainer";
   const navs=isT?[
@@ -162,3 +171,4 @@ export function StretchPicker({exercises,selected,onToggle,onClose}){
   return(<div className="mb" style={{zIndex:1100}} onClick={e=>{if(e.target===e.currentTarget)onClose()}}><div className="mo"><div className="mo-h"><div className="mo-t">Estiramientos</div><button className="mo-x" onClick={onClose}>✕</button></div><input className="inp" placeholder="Buscar..." value={search} onChange={e=>setSearch(e.target.value)} autoFocus style={{marginBottom:10}}/><div style={{maxHeight:320,overflowY:"auto"}}>{stretches.map(ex=>{const sel=selected.includes(ex.id);return(<div key={ex.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:"1px solid #DDE4F0"}}><div><div style={{fontSize:13,fontWeight:700}}>{ex.name}</div><div style={{fontSize:10,color:"#6B7A99"}}>{ex.muscleGroup}</div></div><button className={`btn btn-sm ${sel?"btn-d":"btn-ok"}`} onClick={()=>onToggle(ex.id)}>{sel?"Quitar":"✓"}</button></div>);})}</div><div style={{marginTop:10}}><button className="btn btn-p btn-full" onClick={onClose}>Listo ({selected.length})</button></div></div></div>);
 }
 
+// ── DASHBOARD ──
