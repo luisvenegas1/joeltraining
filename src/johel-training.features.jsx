@@ -905,6 +905,25 @@ export function GroupTimer({restSeconds}){
   const[fullscreen,setFullscreen]=useState(false);
   const intRef=useRef(null);const restRef=useRef(null);
 
+  function playAlarm(){
+    try{
+      const ctx=new(window.AudioContext||window.webkitAudioContext)();
+      // 3 beeps
+      [0,0.35,0.7].forEach(delay=>{
+        const osc=ctx.createOscillator();
+        const gain=ctx.createGain();
+        osc.connect(gain);gain.connect(ctx.destination);
+        osc.type="sine";
+        osc.frequency.setValueAtTime(880,ctx.currentTime+delay);
+        osc.frequency.setValueAtTime(1100,ctx.currentTime+delay+0.1);
+        gain.gain.setValueAtTime(0.6,ctx.currentTime+delay);
+        gain.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+delay+0.28);
+        osc.start(ctx.currentTime+delay);
+        osc.stop(ctx.currentTime+delay+0.28);
+      });
+    }catch(e){console.log("Audio no disponible:",e);}
+  }
+
   useEffect(()=>{
     if(running){intRef.current=setInterval(()=>setSecs(s=>s+1),1000)}
     else clearInterval(intRef.current);
@@ -912,7 +931,10 @@ export function GroupTimer({restSeconds}){
   },[running]);
 
   useEffect(()=>{
-    if(restActive&&restLeft>0){restRef.current=setInterval(()=>setRestLeft(s=>{if(s<=1){clearInterval(restRef.current);setRestActive(false);setFullscreen(false);return 0}return s-1}),1000)}
+    if(restActive&&restLeft>0){restRef.current=setInterval(()=>setRestLeft(s=>{
+      if(s<=1){clearInterval(restRef.current);setRestActive(false);setFullscreen(false);playAlarm();return 0}
+      return s-1;
+    }),1000)}
     else clearInterval(restRef.current);
     return()=>clearInterval(restRef.current);
   },[restActive,restLeft]);
