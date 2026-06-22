@@ -6,7 +6,7 @@ import {
   getMeasurements, upsertMeasurement, deleteMeasurement,
 } from "./db";
 import { STYLES } from "./johel-training.styles";
-import { LoginPage, Sidebar } from "./johel-training.ui";
+import { LoginPage, Sidebar, AppFooter } from "./johel-training.ui";
 import {
   AdminsPage,
   ClientsPage,
@@ -128,7 +128,7 @@ export default function App(){
       <Sidebar user={liveUser} page={page} setPage={setPage} onLogout={logout}/>
       <main className="main">
         {content}
-        <div className="main-footer">© {new Date().getFullYear()} Johel Herrera · Strength | Discipline | Evolution · Todos los derechos reservados · Desarrollado exclusivamente para uso de Johel Herrera Personal Training</div>
+        <AppFooter/>
       </main>
     </div>
   </>);
