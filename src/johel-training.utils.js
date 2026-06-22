@@ -1,4 +1,14 @@
 import { useState, useCallback } from "react";
+import bcrypt from "bcryptjs";
+
+export async function hashPassword(plain){
+  return bcrypt.hashSync(plain, 10);
+}
+export function verifyPassword(plain, hash){
+  // Soporte para contraseñas legacy (sin hash) durante transición
+  if(!hash.startsWith("$2"))return plain===hash;
+  return bcrypt.compareSync(plain, hash);
+}
 
 export function genId(){return"id_"+Math.random().toString(36).slice(2,10)}
 export function useLS(key,init){

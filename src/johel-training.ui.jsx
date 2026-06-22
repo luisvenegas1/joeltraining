@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { LOGO_IMG, TRAINER_PHOTO } from "./johel-training.assets";
-import { getEmbed, initials } from "./johel-training.utils";
+import { getEmbed, initials, verifyPassword } from "./johel-training.utils";
 
 export function Logo({size=52}){return(<img src={LOGO_IMG} alt="Johel Herrera" style={{width:size,height:size,objectFit:"contain",borderRadius:8}}/>);}
 
@@ -16,16 +16,6 @@ export function Modal({title,onClose,children,size=""}){
 export function VideoModal({name,url,onClose}){
   const embed=getEmbed(url);
   return(<Modal title={name} onClose={onClose}>{embed?(<div style={{position:"relative",paddingBottom:"56.25%",height:0,overflow:"hidden",borderRadius:8}}><iframe src={embed} style={{position:"absolute",top:0,left:0,width:"100%",height:"100%",border:"none",borderRadius:8}} allow="accelerometer;autoplay;clipboard-write;encrypted-media;gyroscope;picture-in-picture" allowFullScreen title={name}/></div>):<div className="empty"><div className="ico">🎬</div><p>Sin video</p></div>}</Modal>);
-}
-
-// ── APP FOOTER ──
-export function AppFooter(){
-  return(
-    <div className="main-footer">
-      © 2026 Johel Herrera · Strength | Discipline | Evolution · Todos los derechos reservados<br/>
-      · Desarrollado por <a href="https://wa.me/50688238325" target="_blank" rel="noreferrer" style={{color:"inherit",textDecoration:"underline",fontWeight:700}}>Luis Diego Venegas</a>
-    </div>
-  );
 }
 
 // ── LOGIN ──
@@ -70,21 +60,16 @@ export function SobreJohel({onClose}){
   );
 }
 
-export function LoginPage({onLogin,trainer,users}){
+export function LoginPage({onLogin,users}){
   const[u,setU]=useState("");const[p,setP]=useState("");const[err,setErr]=useState("");const[showSobre,setShowSobre]=useState(false);
   function go(e){
     e.preventDefault();
-    if(u.toLowerCase()===trainer.username.toLowerCase()&&p===trainer.password){onLogin(trainer);return}
-    // check admins stored
-    const admins=(JSON.parse(localStorage.getItem("jh_admins_v3")||"[]"));
-    const adm=admins.find(a=>a.username.toLowerCase()===u.toLowerCase()&&a.password===p);
-    if(adm){onLogin({...adm,role:"trainer"});return}
-    const user=users.find(x=>x.username.toLowerCase()===u.toLowerCase()&&x.password===p);
-    if(user){
-      if(user.disabled){setErr("Tu cuenta está deshabilitada. Contactá a Johel para más información.");return;}
-      onLogin(user);return;
-    }
-    setErr("Usuario o contraseña incorrectos");
+    // Buscar en todos los usuarios (incluyendo trainer)
+    const found=users.find(x=>x.username.toLowerCase()===u.toLowerCase());
+    if(!found){setErr("Usuario o contraseña incorrectos");return;}
+    if(!verifyPassword(p,found.password)){setErr("Usuario o contraseña incorrectos");return;}
+    if(found.disabled){setErr("Tu cuenta está deshabilitada. Contactá a Johel para más información.");return;}
+    onLogin(found);
   }
   return(<div className="login-page">
     {showSobre&&<SobreJohel onClose={()=>setShowSobre(false)}/>}
@@ -106,7 +91,6 @@ export function LoginPage({onLogin,trainer,users}){
         </button>
       </div>
     </div>
-    <AppFooter/>
   </div>);
 }
 

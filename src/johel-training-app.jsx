@@ -5,9 +5,8 @@ import {
   getRoutines, upsertRoutine, deleteRoutine,
   getMeasurements, upsertMeasurement, deleteMeasurement,
 } from "./db";
-import { INITIAL_TRAINER } from "./johel-training.constants";
 import { STYLES } from "./johel-training.styles";
-import { LoginPage, Sidebar, AppFooter } from "./johel-training.ui";
+import { LoginPage, Sidebar } from "./johel-training.ui";
 import {
   AdminsPage,
   ClientsPage,
@@ -32,7 +31,6 @@ export default function App(){
   const[measurements,setMeasurementsState]=useState([]);
   const[loading,setLoading]=useState(true);
   const[dbError,setDbError]=useState(null);
-  const trainer=INITIAL_TRAINER;
 
   useEffect(()=>{
     async function load(){
@@ -108,7 +106,7 @@ export default function App(){
 
   if(dbError)return(<><style>{STYLES}</style><div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",flexDirection:"column",gap:12,background:"#F4F6FB",padding:24,textAlign:"center"}}><div style={{fontSize:32}}>⚠️</div><div style={{fontFamily:"'Barlow',sans-serif",fontSize:16,color:"#E53935",fontWeight:700}}>{dbError}</div><button className="btn btn-p" onClick={()=>window.location.reload()}>Reintentar</button></div></>);
 
-  if(!currentUser)return(<><style>{STYLES}</style><LoginPage onLogin={login} trainer={trainer} users={users}/></>);
+  if(!currentUser)return(<><style>{STYLES}</style><LoginPage onLogin={login} users={users}/></>);
 
   const isT=currentUser.role==="trainer";
   const liveUser=isT?currentUser:(users.find(u=>u.id===currentUser.id)||currentUser);
@@ -130,7 +128,7 @@ export default function App(){
       <Sidebar user={liveUser} page={page} setPage={setPage} onLogout={logout}/>
       <main className="main">
         {content}
-        <AppFooter/>
+        <div className="main-footer">© {new Date().getFullYear()} Johel Herrera · Strength | Discipline | Evolution · Todos los derechos reservados · Desarrollado exclusivamente para uso de Johel Herrera Personal Training</div>
       </main>
     </div>
   </>);

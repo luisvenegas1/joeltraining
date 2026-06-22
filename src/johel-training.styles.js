@@ -165,7 +165,7 @@ label{font-size:11px;font-weight:700;color:#6B7A99;display:block;margin-bottom:4
   .nav-item.active{background:rgba(26,93,200,0.3);color:#4FC3F7}
   .nav-item span:not(.nav-icon){font-size:9px;letter-spacing:0}
   .nav-icon{font-size:20px;width:auto}
-  .main{margin-left:0;margin-bottom:60px;padding:12px 14px}
+  .main{margin-left:0;margin-bottom:60px;padding:12px 14px;overflow-x:hidden}
   .fr2,.fr3{grid-template-columns:1fr}
   .mo{max-height:95vh;max-height:95dvh;border-radius:20px 20px 0 0;padding-bottom:40px}
   .mo-lg{border-radius:20px 20px 0 0;margin:auto 0 0 0}
@@ -174,9 +174,9 @@ label{font-size:11px;font-weight:700;color:#6B7A99;display:block;margin-bottom:4
   .pt{font-size:20px}
   .day-h{padding:12px 14px}
   .grp-b{padding:8px 10px}
-  .card{border-radius:12px;max-width:100%}
+  .card{border-radius:12px;max-width:100%;box-sizing:border-box}
   .day-card{border-radius:12px;margin-bottom:10px}
-  .card[style*="overflow"]{margin-left:0;margin-right:0;border-radius:12px}
+  .tbl-wrap{overflow-x:auto;border-radius:12px}
 }
 @media(min-width:641px){
   .mb{align-items:center;padding:16px}

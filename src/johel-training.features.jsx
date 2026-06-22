@@ -10,7 +10,7 @@ import {
   PLAN_TYPES,
   SURFACE_TYPES,
 } from "./johel-training.constants";
-import { addMonths, calcAge, daysLeft, fmtDate, genId, getPlanStatus, getPlanStatusFromEndDate, initials, planColor, useLS } from "./johel-training.utils";
+import { addMonths, calcAge, daysLeft, fmtDate, genId, getPlanStatus, getPlanStatusFromEndDate, initials, planColor, useLS, hashPassword } from "./johel-training.utils";
 import { Modal, PasswordInput, Toast, VideoModal, ExercisePicker, StretchPicker, Logo } from "./johel-training.ui";
 
 export function Dashboard({users}){
@@ -31,11 +31,11 @@ export function Dashboard({users}){
       <div className="stat"><div className="sl">Vencen pronto</div><div className="sv" style={{color:expiring>0?"#F57C00":"#6B7A99"}}>{expiring}</div></div>
     </div>
 
-    <div className="card" style={{padding:0,overflowX:"auto",marginBottom:16}}>
+    <div className="card" style={{marginBottom:16}}>
       <div style={{padding:"12px 16px 8px",fontWeight:700,fontSize:12,color:"#0B1F4B",textTransform:"uppercase",letterSpacing:1,borderBottom:"1px solid #DDE4F0"}}>
         👥 Clientes habilitados ({enabled.length})
       </div>
-      <table className="tbl">
+      <div className="tbl-wrap"><table className="tbl">
         <thead><tr><th>Cliente</th><th>Plan</th><th>Modalidad</th><th>Vence</th><th>Estado</th></tr></thead>
         <tbody>{enabled.map(u=>{
           const st=getPlanStatus(u.plan);
@@ -48,14 +48,14 @@ export function Dashboard({users}){
             <td><span className={`badge ${st==="Activo"?"bd-green":st==="Vencido"?"bd-red":"bd-gray"}`}>{st}</span></td>
           </tr>);
         })}{enabled.length===0&&<tr><td colSpan={5}><div className="empty"><div className="ico">👥</div><p>Sin clientes habilitados</p></div></td></tr>}</tbody>
-      </table>
+      </table></div>
     </div>
 
-    {disabled.length>0&&<div className="card" style={{padding:0,overflowX:"auto"}}>
+    {disabled.length>0&&<div className="card" style={{padding:0}}>
       <div style={{padding:"12px 16px 8px",fontWeight:700,fontSize:12,color:"#9E9E9E",textTransform:"uppercase",letterSpacing:1,borderBottom:"1px solid #DDE4F0"}}>
         🚫 Clientes deshabilitados ({disabled.length})
       </div>
-      <table className="tbl">
+      <div className="tbl-wrap"><table className="tbl">
         <thead><tr><th>Cliente</th><th>Plan</th><th>Modalidad</th><th>Vence</th><th></th></tr></thead>
         <tbody>{disabled.map(u=>{
           return(<tr key={u.id} style={{opacity:0.6}}>
@@ -66,7 +66,7 @@ export function Dashboard({users}){
             <td><span className="badge bd-red">🚫 Deshabilitado</span></td>
           </tr>);
         })}</tbody>
-      </table>
+      </table></div>
     </div>}
   </div>);
 }
@@ -87,8 +87,8 @@ export function AdminsPage(){
 
   return(<div>
     <div className="ph"><div><div className="pt">Administradores</div><div className="ps">Perfiles con acceso de entrenador</div></div><button className="btn btn-p" onClick={()=>setShowAdd(true)}>+ Nuevo admin</button></div>
-    <div className="card" style={{padding:0,overflowX:"auto"}}>
-      <table className="tbl">
+    <div className="card" style={{padding:0}}>
+      <div className="tbl-wrap"><table className="tbl">
         <thead><tr><th>Nombre</th><th>Usuario</th><th>Rol</th><th></th></tr></thead>
         <tbody>
           <tr><td><strong>Johel Herrera</strong></td><td>@johel</td><td><span className="badge bd-blue">Principal</span></td><td></td></tr>
@@ -99,7 +99,7 @@ export function AdminsPage(){
           </tr>))}
           {admins.length===0&&<tr><td colSpan={4} style={{textAlign:"center",color:"#6B7A99",padding:20,fontSize:12}}>Sin administradores adicionales</td></tr>}
         </tbody>
-      </table>
+      </table></div>
     </div>
     {showAdd&&<Modal title="Nuevo administrador" onClose={()=>setShowAdd(false)}>
       {err&&<div className="err">{err}</div>}
@@ -434,8 +434,14 @@ export function ClientDetail({client,setClient,measurements,setMeasurements,rout
   const[disableConfirm,setDisableConfirm]=useState(false);
 
   async function saveInfo(){
-    try{await setClient({...cForm});setShowEditInfo(false);setToast({msg:"Datos actualizados",type:"ok"});}
-    catch(e){console.error(e);setToast({msg:ERR,type:"err"});}
+    try{
+      let updated={...cForm};
+      // Si cambió la contraseña y no parece un hash bcrypt, encriptarla
+      if(updated.password&&!updated.password.startsWith("$2")){
+        updated.password=await hashPassword(updated.password);
+      }
+      await setClient({...updated});setShowEditInfo(false);setToast({msg:"Datos actualizados",type:"ok"});
+    }catch(e){console.error(e);setToast({msg:ERR,type:"err"});}
   }
   async function savePlan(plan){
     await setClient({...client,plan});
@@ -555,7 +561,8 @@ export function ClientsPage({users,setUsers,routines,measurements,setMeasurement
     if(!form.name||!form.username||!form.password){setErr("Nombre, usuario y contraseña son requeridos");return}
     if(users.some(u=>u.username===form.username)){setErr("Ese usuario ya existe");return}
     try{
-      await setUsers([...users,{id:genId(),...form,role:"user",payments:[]}]);
+      const hashed=await hashPassword(form.password);
+      await setUsers([...users,{id:genId(),...form,password:hashed,role:"user",payments:[]}]);
       setForm({name:"",username:"",password:"",phone:"",email:"",cedula:"",dob:"",height:"",notes:"",plan:{type:"Base",modality:"En Estudio",format:"Individual",startDate:"",endDate:"",price:""}});
       setErr("");setShowAdd(false);
       setToast({msg:"Cliente creado correctamente",type:"ok"});
@@ -594,8 +601,8 @@ export function ClientsPage({users,setUsers,routines,measurements,setMeasurement
     {toast&&<Toast msg={toast.msg} type={toast.type} onDone={()=>setToast(null)}/>}
     <div className="ph"><div><div className="pt">Clientes</div><div className="ps">{users.length} clientes</div></div><button className="btn btn-p" onClick={()=>setShowAdd(true)}>+ Nuevo</button></div>
     <input className="inp" placeholder="🔍 Buscar por nombre o usuario..." value={search} onChange={e=>setSearch(e.target.value)} style={{marginBottom:10}}/>
-    <div className="card" style={{padding:0,overflowX:"auto"}}>
-      <table className="tbl">
+    <div className="card" style={{padding:0}}>
+      <div className="tbl-wrap"><table className="tbl">
         <thead><tr><th>Cliente</th><th>Plan</th><th>Modalidad</th><th>Vence</th><th>Estado</th></tr></thead>
         <tbody>{users.filter(u=>u.name.toLowerCase().includes(search.toLowerCase())||u.username.toLowerCase().includes(search.toLowerCase())).map(u=>{
           const st=getPlanStatus(u.plan);
@@ -608,7 +615,7 @@ export function ClientsPage({users,setUsers,routines,measurements,setMeasurement
             <td>{u.disabled?<span className="badge bd-red">🚫 Deshabilitado</span>:<span className={`badge ${st==="Activo"?"bd-green":st==="Vencido"?"bd-red":"bd-gray"}`}>{st}</span>}</td>
           </tr>);
         })}{users.filter(u=>u.name.toLowerCase().includes(search.toLowerCase())||u.username.toLowerCase().includes(search.toLowerCase())).length===0&&<tr><td colSpan={5}><div className="empty"><div className="ico">🔍</div><p>{search?"Sin resultados para \""+search+"\"":"Sin clientes"}</p></div></td></tr>}</tbody>
-      </table>
+      </table></div>
     </div>
     {showAdd&&<Modal title="Nuevo cliente" onClose={()=>setShowAdd(false)}>
       {err&&<div className="err">{err}</div>}
@@ -686,13 +693,13 @@ export function ExercisesPage({exercises,setExercises}){
     <div className="tabs">{["normal","stretching"].map(t=>(<div key={t} className={`tab${tab===t?" active":""}`} onClick={()=>{setTab(t);setFilter("Todos")}}>{t==="normal"?"🏋️ Ejercicios":"🧘 Estiramientos"}</div>))}</div>
     <input className="inp" placeholder="🔍 Buscar..." value={search} onChange={e=>setSearch(e.target.value)} style={{marginBottom:8}}/>
     <div className="chips">{groups.map(g=><button key={g} className={`chip${filter===g?" on":""}`} onClick={()=>setFilter(g)}>{g}</button>)}</div>
-    <div className="card" style={{padding:0,overflowX:"auto"}}>
-      <table className="tbl"><thead><tr><th>Ejercicio</th><th>Músculo</th><th>Equipo</th><th>Video</th><th></th></tr></thead>
+    <div className="card" style={{padding:0}}>
+      <div className="tbl-wrap"><table className="tbl"><thead><tr><th>Ejercicio</th><th>Músculo</th><th>Equipo</th><th>Video</th><th></th></tr></thead>
       <tbody>{list.map(ex=>(<tr key={ex.id}>
         <td><strong>{ex.name}</strong></td><td><span className="badge bd-blue">{ex.muscleGroup}</span></td><td><span className="badge bd-gray">{ex.equipment||"Ninguno"}</span></td>
         <td>{ex.videoUrl?<button className="vbtn" onClick={()=>setVideoEx(ex)}>▶</button>:<span style={{color:"#6B7A99",fontSize:10}}>—</span>}</td>
         <td style={{whiteSpace:"nowrap"}}><button className="ibtn" onClick={()=>openEdit(ex)}>✏️</button><button className="ibtn d" onClick={()=>del(ex.id)}>🗑</button></td>
-      </tr>))}{list.length===0&&<tr><td colSpan={5}><div className="empty"><div className="ico">🏋️</div><p>Sin ejercicios</p></div></td></tr>}</tbody></table>
+      </tr>))}{list.length===0&&<tr><td colSpan={5}><div className="empty"><div className="ico">🏋️</div><p>Sin ejercicios</p></div></td></tr>}</tbody></table></div>
     </div>
     {showAdd&&<Modal title={editing?"Editar ejercicio":"Nuevo ejercicio"} onClose={()=>setShowAdd(false)}>
       <div className="fg"><label>Nombre</label><input className="inp" value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Nombre del ejercicio"/></div>

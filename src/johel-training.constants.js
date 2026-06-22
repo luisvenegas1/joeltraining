@@ -19,6 +19,4 @@ export const MEASUREMENT_FIELDS = [
   {key:"bmi",label:"BMI",unit:""},{key:"metabolicAge",label:"Edad metabólica",unit:"años"},
 ];
 
-export const INITIAL_TRAINER = {id:"t1",username:"johel",password:"johel123",name:"Johel Herrera",role:"trainer"};
-
 export const ALL_EXERCISES = []; // Ejercicios cargados desde Supabase
