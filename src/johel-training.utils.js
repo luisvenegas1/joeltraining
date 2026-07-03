@@ -1,6 +1,25 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
+
+// Hook para manejar estado de guardado (loading + doble click prevention)
+export function useSaving(){
+  const[saving,setSaving]=useState(false);
+  const ref=useRef(false);
+  async function wrap(fn){
+    if(ref.current)return;
+    ref.current=true;setSaving(true);
+    try{await fn();}finally{ref.current=false;setSaving(false);}
+  }
+  return[saving,wrap];
+}
 import bcrypt from "bcryptjs";
 
+export function generatePassword(){
+  const chars="ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
+  const len=Math.floor(Math.random()*3)+6; // 6-8
+  let pwd="";
+  for(let i=0;i<len;i++) pwd+=chars[Math.floor(Math.random()*chars.length)];
+  return pwd;
+}
 export async function hashPassword(plain){
   return bcrypt.hashSync(plain, 10);
 }

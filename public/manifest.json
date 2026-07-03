@@ -4,8 +4,8 @@
   "description": "Strength · Discipline · Evolution",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0B1F4B",
-  "theme_color": "#0B1F4B",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
   "orientation": "portrait",
   "icons": [
     {

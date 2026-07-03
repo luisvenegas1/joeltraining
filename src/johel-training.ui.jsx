@@ -13,6 +13,12 @@ export function Modal({title,onClose,children,size=""}){
   return(<div className="mb" onClick={e=>{if(e.target===e.currentTarget)onClose()}}><div className={`mo${size?" mo-"+size:""}`}><div className="mo-h"><div className="mo-t">{title}</div><button className="mo-x" onClick={onClose}>✕</button></div>{children}</div></div>);
 }
 
+export function SaveBtn({onClick,saving,children,className="btn btn-p",style={}}){
+  return(<button className={className} style={style} onClick={onClick} disabled={saving}>
+    {saving?<span style={{display:"inline-flex",alignItems:"center",gap:6}}><span style={{width:14,height:14,border:"2px solid currentColor",borderTopColor:"transparent",borderRadius:"50%",display:"inline-block",animation:"spin 0.7s linear infinite"}}/>Guardando...</span>:children}
+  </button>);
+}
+
 export function VideoModal({name,url,onClose}){
   const embed=getEmbed(url);
   return(<Modal title={name} onClose={onClose}>{embed?(<div style={{position:"relative",paddingBottom:"56.25%",height:0,overflow:"hidden",borderRadius:8}}><iframe src={embed} style={{position:"absolute",top:0,left:0,width:"100%",height:"100%",border:"none",borderRadius:8}} allow="accelerometer;autoplay;clipboard-write;encrypted-media;gyroscope;picture-in-picture" allowFullScreen title={name}/></div>):<div className="empty"><div className="ico">🎬</div><p>Sin video</p></div>}</Modal>);
@@ -24,6 +30,7 @@ export function AppFooter(){
     <div className="main-footer">
       © 2026 Johel Herrera · Strength | Discipline | Evolution · Todos los derechos reservados<br/>
       · Desarrollado por <a href="https://wa.me/50688238325" target="_blank" rel="noreferrer" style={{color:"inherit",textDecoration:"underline",fontWeight:700}}>Luis Diego Venegas</a>
+      <span style={{opacity:0.5,marginLeft:8}}>· v1.0.0</span>
     </div>
   );
 }
@@ -70,8 +77,63 @@ export function SobreJohel({onClose}){
   );
 }
 
+function InstallModal({onClose}){
+  const[os,setOs]=useState(null); // null | "ios" | "android"
+  const btnStyle={padding:"12px 0",borderRadius:10,fontWeight:700,fontSize:15,cursor:"pointer",border:"none",width:"100%",marginBottom:8};
+  const steps={
+    ios:[
+      {icon:"🌐",text:"Abrí esta página en Safari (no en Chrome ni otro navegador)."},
+      {icon:"⬆️",text:'Tocá el botón de compartir (el cuadrado con la flecha hacia arriba) en la barra inferior.'},
+      {icon:"➕",text:'Desplazate hacia abajo y tocá "Agregar a pantalla de inicio".'},
+      {icon:"✅",text:'Tocá "Agregar" en la esquina superior derecha. ¡Listo!'},
+    ],
+    android:[
+      {icon:"🌐",text:"Abrí esta página en Chrome."},
+      {icon:"⋮",text:"Tocá el menú de tres puntos (⋮) en la esquina superior derecha."},
+      {icon:"➕",text:'Tocá "Agregar a pantalla de inicio" o "Instalar app".'},
+      {icon:"✅",text:'Confirmá tocando "Agregar". ¡Listo!'},
+    ]
+  };
+  return(<div style={{position:"fixed",inset:0,background:"rgba(11,31,75,0.55)",zIndex:9999,display:"flex",alignItems:"flex-end",justifyContent:"center"}} onClick={onClose}>
+    <div style={{background:"#fff",borderRadius:"20px 20px 0 0",width:"100%",maxWidth:480,padding:"28px 24px 28px",boxShadow:"0 -8px 40px rgba(11,31,75,0.18)",borderBottom:"4px solid #0B1F4B"}} onClick={e=>e.stopPropagation()}>
+      <div style={{textAlign:"center",marginBottom:20}}>
+        <div style={{fontSize:32,marginBottom:6}}>📲</div>
+        <div style={{fontSize:18,fontWeight:800,color:"#0B1F4B"}}>Instalar como app</div>
+        <div style={{fontSize:13,color:"#6B7A99",marginTop:4}}>Agregala a tu pantalla de inicio para usarla como una app.</div>
+      </div>
+      {!os&&(<div>
+        <div style={{fontSize:13,fontWeight:700,color:"#6B7A99",textAlign:"center",marginBottom:12}}>¿Qué dispositivo tenés?</div>
+        <button style={{...btnStyle,background:"#0B1F4B",color:"#fff"}} onClick={()=>setOs("ios")}> iPhone / iPad (iOS)</button>
+        <button style={{...btnStyle,background:"#3A8EF6",color:"#fff"}} onClick={()=>setOs("android")}> Android</button>
+        <button style={{...btnStyle,background:"#F1F4FF",color:"#6B7A99",marginBottom:0}} onClick={onClose}>Cancelar</button>
+      </div>)}
+      {os&&(<div>
+        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16}}>
+          <button onClick={()=>setOs(null)} style={{background:"none",border:"none",cursor:"pointer",fontSize:13,color:"#3A8EF6",fontWeight:700,padding:0}}>← Volver</button>
+          <div style={{fontWeight:700,fontSize:14,color:"#0B1F4B"}}>{os==="ios"?"iPhone / iPad":"Android"}</div>
+        </div>
+        <div style={{display:"flex",flexDirection:"column",gap:12,marginBottom:20}}>
+          {steps[os].map((s,i)=>(
+            <div key={i} style={{display:"flex",gap:12,alignItems:"center",background:"#F8F9FF",borderRadius:10,padding:"12px 14px"}}>
+              <div style={{fontSize:22,flexShrink:0,width:32,textAlign:"center"}}>{s.icon}</div>
+              <div style={{flex:1}}>
+                <div style={{fontSize:11,fontWeight:700,color:"#3A8EF6",marginBottom:2}}>Paso {i+1}</div>
+                <div style={{fontSize:13,color:"#0B1F4B",lineHeight:1.5}}>{s.text}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div style={{background:"#EFF6FF",borderRadius:10,padding:"10px 14px",fontSize:12,color:"#1A5DC8",marginBottom:16}}>
+          💡 Una vez instalada, podés abrirla desde tu pantalla de inicio igual que cualquier app.
+        </div>
+        <button style={{...btnStyle,background:"#0B1F4B",color:"#fff",marginBottom:0}} onClick={onClose}>¡Entendido!</button>
+      </div>)}
+    </div>
+  </div>);
+}
+
 export function LoginPage({onLogin,users}){
-  const[u,setU]=useState("");const[p,setP]=useState("");const[err,setErr]=useState("");const[showSobre,setShowSobre]=useState(false);
+  const[u,setU]=useState("");const[p,setP]=useState("");const[err,setErr]=useState("");const[showSobre,setShowSobre]=useState(false);const[showInstall,setShowInstall]=useState(false);
   function go(e){
     e.preventDefault();
     // Buscar en todos los usuarios (incluyendo trainer)
@@ -83,6 +145,7 @@ export function LoginPage({onLogin,users}){
   }
   return(<div className="login-page">
     {showSobre&&<SobreJohel onClose={()=>setShowSobre(false)}/>}
+    {showInstall&&<InstallModal onClose={()=>setShowInstall(false)}/>}
     <div className="login-box">
       <div className="login-logo">
         <img src={LOGO_IMG} alt="Johel Herrera" style={{width:120,height:120,objectFit:"contain",display:"block",margin:"0 auto 10px"}}/>
@@ -95,7 +158,10 @@ export function LoginPage({onLogin,users}){
         <div className="fg"><label>Contraseña</label><PasswordInput value={p} onChange={e=>setP(e.target.value)}/></div>
         <button className="btn btn-p btn-full" type="submit" style={{marginTop:8}}>Ingresar →</button>
       </form>
-      <div style={{textAlign:"center",marginTop:18,paddingTop:14,borderTop:"1px solid #DDE4F0"}}>
+      <div style={{textAlign:"center",marginTop:14,paddingTop:14,borderTop:"1px solid #DDE4F0",display:"flex",justifyContent:"center",gap:20,flexWrap:"wrap"}}>
+        <button onClick={()=>setShowInstall(true)} style={{background:"none",border:"none",cursor:"pointer",color:"#3A8EF6",fontSize:13,fontWeight:700,fontFamily:"'Barlow',sans-serif",padding:0}}>
+          📲 Instalar como app
+        </button>
         <button onClick={()=>setShowSobre(true)} style={{background:"none",border:"none",cursor:"pointer",color:"#1A5DC8",fontSize:13,fontWeight:700,fontFamily:"'Barlow',sans-serif",textDecoration:"underline",padding:0}}>
           Sobre Johel →
         </button>
@@ -152,7 +218,7 @@ export function Toast({msg,type,onDone}){
     <span style={{fontSize:16}}>{icon}</span>
     <span style={{flex:1}}>{msg}</span>
     <button onClick={onDone} style={{background:"none",border:"none",color:"rgba(255,255,255,0.7)",cursor:"pointer",fontSize:16,padding:0,lineHeight:1}}>✕</button>
-    <style>{`@keyframes slideDown{from{opacity:0;transform:translateX(-50%) translateY(-12px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}`}</style>
+    <style>{`@keyframes slideDown{from{opacity:0;transform:translateX(-50%) translateY(-12px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}@keyframes spin{to{transform:rotate(360deg)}}`}</style>
   </div>);
 }
 

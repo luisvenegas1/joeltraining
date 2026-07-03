@@ -10,8 +10,8 @@ import {
   PLAN_TYPES,
   SURFACE_TYPES,
 } from "./johel-training.constants";
-import { addMonths, calcAge, daysLeft, fmtDate, genId, getPlanStatus, getPlanStatusFromEndDate, initials, planColor, useLS, hashPassword } from "./johel-training.utils";
-import { Modal, PasswordInput, Toast, VideoModal, ExercisePicker, StretchPicker, Logo } from "./johel-training.ui";
+import { addMonths, calcAge, daysLeft, fmtDate, genId, getPlanStatus, getPlanStatusFromEndDate, initials, planColor, useLS, hashPassword, generatePassword, useSaving } from "./johel-training.utils";
+import { Modal, PasswordInput, Toast, VideoModal, ExercisePicker, StretchPicker, Logo, SaveBtn } from "./johel-training.ui";
 
 export function Dashboard({users}){
   const enabled=users.filter(u=>!u.disabled);
@@ -122,6 +122,7 @@ export function PaymentModule({client,setClient}){
   const[amount,setAmount]=useState(client.plan?.price||"");
   const[notes,setNotes]=useState("");
   const[toast,setToast]=useState(null);
+  const[saving,wrap]=useSaving();
   const ERR="Hubo un problema al guardar. Intentá de nuevo en unos minutos.";
   const payments=client.payments||[];
 
@@ -232,7 +233,7 @@ export function PaymentModule({client,setClient}){
         {editingPay?"📅":"✅"} {editingPay?"Nuevo vencimiento estimado:":"Nuevo vencimiento:"} <strong>{previewEnd}</strong>
       </div>
       <div style={{display:"flex",gap:8}}>
-        <button className="btn btn-ok" onClick={savePayment}>{editingPay?"Guardar cambios":"Confirmar pago"}</button>
+        <SaveBtn className="btn btn-ok" onClick={()=>wrap(savePayment)} saving={saving}>{editingPay?"Guardar cambios":"Confirmar pago"}</SaveBtn>
         <button className="btn btn-g" onClick={()=>{setShowPay(false);setEditingPay(null);}}>Cancelar</button>
       </div>
     </Modal>}
@@ -243,6 +244,7 @@ export function PaymentModule({client,setClient}){
 export function PlanEditor({client,onSave}){
   const[form,setForm]=useState(()=>({type:"Base",modality:"En Estudio",format:"Individual",startDate:"",endDate:"",price:"",notes:"",paused:false,pausedAt:null,...(client.plan||{})}));
   const[toast,setToast]=useState(null);
+  const[saving,wrap]=useSaving();
 
   async function handleSave(){
     try{
@@ -303,7 +305,7 @@ export function PlanEditor({client,onSave}){
     <div className="fg"><label>Notas</label><input className="inp" value={form.notes||""} onChange={e=>setForm({...form,notes:e.target.value})} placeholder="Descuento, acuerdo especial..."/></div>
 
     <div style={{borderTop:"1px solid #DDE4F0",paddingTop:12,marginTop:4,display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
-      <button className="btn btn-p" onClick={handleSave}>💾 Guardar</button>
+      <SaveBtn onClick={()=>wrap(handleSave)} saving={saving}>💾 Guardar</SaveBtn>
       <button
         className={`btn ${form.paused?"btn-ok":"btn-w"}`}
         onClick={handlePause}
@@ -323,6 +325,7 @@ export function MeasurementsTab({client,measurements,setMeasurements}){
   const[editingM,setEditingM]=useState(null);
   const[mForm,setMForm]=useState(blankForm);
   const[toast,setToast]=useState(null);
+  const[saving,wrap]=useSaving();
   const ERR="Hubo un problema al guardar. Intentá de nuevo en unos minutos.";
   const clientMs=measurements.filter(m=>m.clientId===client.id).sort((a,b)=>new Date(b.date)-new Date(a.date));
   const latest=clientMs[0];
@@ -364,7 +367,7 @@ export function MeasurementsTab({client,measurements,setMeasurements}){
     {showAdd&&<Modal title={editingM?"Editar medición":"Registrar medición"} onClose={()=>setShowAdd(false)}>
       <div className="fg"><label>Fecha</label><input className="inp" type="date" value={mForm.date} onChange={e=>setMForm({...mForm,date:e.target.value})}/></div>
       <div className="fr2">{MEASUREMENT_FIELDS.map(f=>(<div key={f.key} className="fg"><label>{f.label}{f.unit?` (${f.unit})`:""}</label><input className="inp" type="number" step="0.1" value={mForm[f.key]} onChange={e=>setMForm({...mForm,[f.key]:e.target.value})} placeholder="—"/></div>))}</div>
-      <div style={{display:"flex",gap:8}}><button className="btn btn-p" onClick={save}>{editingM?"Guardar cambios":"Guardar"}</button><button className="btn btn-g" onClick={()=>setShowAdd(false)}>Cancelar</button></div>
+      <div style={{display:"flex",gap:8}}><SaveBtn onClick={()=>wrap(save)} saving={saving}>{editingM?"Guardar cambios":"Guardar"}</SaveBtn><button className="btn btn-g" onClick={()=>setShowAdd(false)}>Cancelar</button></div>
     </Modal>}
   </div>);
 }
@@ -423,12 +426,73 @@ export function HistoryTab({client,measurements,setMeasurements}){
   </div>);
 }
 
+// ── EDIT CLIENT MODAL (admin) ──
+function ConfirmPwdPopup({pwd,onConfirm,onCancel}){
+  const[copied,setCopied]=useState(false);
+  function handleCopy(){navigator.clipboard.writeText(pwd).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),2000);});}
+  return(<div style={{position:"fixed",inset:0,background:"rgba(11,31,75,0.6)",zIndex:10000,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 20px"}} onClick={onCancel}>
+    <div style={{background:"#fff",borderRadius:16,padding:"24px 20px",width:"100%",maxWidth:360,boxShadow:"0 8px 40px rgba(11,31,75,0.22)"}} onClick={e=>e.stopPropagation()}>
+      <div style={{fontSize:22,textAlign:"center",marginBottom:8}}>🔑</div>
+      <div style={{fontWeight:800,fontSize:16,color:"#0B1F4B",textAlign:"center",marginBottom:6}}>Contraseña generada</div>
+      <div style={{fontSize:13,color:"#6B7A99",textAlign:"center",marginBottom:16}}>Copiá la contraseña antes de guardar para enviársela al cliente.</div>
+      <div style={{display:"flex",alignItems:"center",gap:8,justifyContent:"center",marginBottom:20}}>
+        <span style={{fontFamily:"monospace",fontWeight:700,fontSize:18,background:"#F0F4FF",border:"1px solid #C7D6F7",borderRadius:8,padding:"6px 14px",letterSpacing:3,color:"#0B1F4B"}}>{pwd}</span>
+        <button type="button" className="btn btn-s btn-sm" onClick={handleCopy}>{copied?"✅":"📋"}</button>
+      </div>
+      <div style={{display:"flex",gap:8}}>
+        <button className="btn btn-p" style={{flex:1}} onClick={onConfirm}>Guardar cambios</button>
+        <button className="btn btn-g" style={{flex:1}} onClick={onCancel}>Cancelar</button>
+      </div>
+    </div>
+  </div>);
+}
+
+function EditClientModal({cForm,setCForm,onSave,onClose,saving=false}){
+  const[genPwd,setGenPwd]=useState("");
+  const[showConfirm,setShowConfirm]=useState(false);
+
+  function handleGenerate(){
+    const pwd=generatePassword();
+    setGenPwd(pwd);
+    setCForm(f=>({...f,_newPlainPwd:pwd}));
+    setShowConfirm(true);
+  }
+  function handleConfirm(){setShowConfirm(false);onSave();}
+  function handleCancelPwd(){
+    setGenPwd("");
+    setCForm(f=>{const n={...f};delete n._newPlainPwd;return n;});
+    setShowConfirm(false);
+  }
+
+  return(<Modal title="Editar datos" onClose={onClose}>
+    {showConfirm&&<ConfirmPwdPopup pwd={genPwd} onConfirm={handleConfirm} onCancel={handleCancelPwd}/>}
+    <div className="fr2">
+      <div className="fg"><label>Nombre</label><input className="inp" value={cForm.name||""} onChange={e=>setCForm({...cForm,name:e.target.value})}/></div>
+      <div className="fg"><label>Usuario</label><input className="inp" value={cForm.username||""} onChange={e=>setCForm({...cForm,username:e.target.value})}/></div>
+      <div className="fg"><label>Cédula</label><input className="inp" value={cForm.cedula||""} onChange={e=>setCForm({...cForm,cedula:e.target.value})}/></div>
+      <div className="fg"><label>Teléfono</label><input className="inp" value={cForm.phone||""} onChange={e=>setCForm({...cForm,phone:e.target.value})}/></div>
+      <div className="fg"><label>Correo</label><input className="inp" type="email" value={cForm.email||""} onChange={e=>setCForm({...cForm,email:e.target.value})}/></div>
+      <div className="fg"><label>Fecha de nacimiento</label><input className="inp" type="date" value={cForm.dob||""} onChange={e=>setCForm({...cForm,dob:e.target.value})}/></div>
+      <div className="fg"><label>Estatura (cm)</label><input className="inp" type="number" value={cForm.height||""} onChange={e=>setCForm({...cForm,height:e.target.value})}/></div>
+    </div>
+    <div className="fg"><label>Notas internas</label><textarea className="ta" value={cForm.notes||""} onChange={e=>setCForm({...cForm,notes:e.target.value})}/></div>
+    <div style={{borderTop:"1px solid #DDE4F0",paddingTop:12,marginTop:4}}>
+      <div style={{fontSize:11,fontWeight:700,color:"#6B7A99",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Contraseña</div>
+      <div style={{fontSize:12,color:"#6B7A99",marginBottom:8}}>Generá una nueva contraseña para enviarle al cliente (cliente nuevo o contraseña olvidada).</div>
+      <button type="button" className="btn btn-s btn-sm" onClick={handleGenerate}>🔑 Generar contraseña</button>
+      {genPwd&&<div style={{marginTop:8,fontSize:12,color:"#1A5DC8"}}>✅ Contraseña lista — se guardará junto con los datos.</div>}
+    </div>
+    <div style={{display:"flex",gap:8,marginTop:14}}><SaveBtn onClick={onSave} saving={saving}>Guardar</SaveBtn><button className="btn btn-g" onClick={onClose}>Cancelar</button></div>
+  </Modal>);
+}
+
 // ── CLIENT DETAIL ──
 export function ClientDetail({client,setClient,measurements,setMeasurements,routines,onBack,onDelete,deleteConfirm,setDeleteConfirm,doDelete}){
   const[tab,setTab]=useState("info");
   const[showEditInfo,setShowEditInfo]=useState(false);
   const[cForm,setCForm]=useState({...client});
   const[toast,setToast]=useState(null);
+  const[saving,wrap]=useSaving();
   const ERR="Hubo un problema al guardar. Intentá de nuevo en unos minutos.";
 
   const[disableConfirm,setDisableConfirm]=useState(false);
@@ -436,9 +500,12 @@ export function ClientDetail({client,setClient,measurements,setMeasurements,rout
   async function saveInfo(){
     try{
       let updated={...cForm};
-      // Si cambió la contraseña y no parece un hash bcrypt, encriptarla
-      if(updated.password&&!updated.password.startsWith("$2")){
-        updated.password=await hashPassword(updated.password);
+      // Si se generó contraseña nueva, hashearla
+      if(updated._newPlainPwd){
+        updated.password=await hashPassword(updated._newPlainPwd);
+        delete updated._newPlainPwd;
+      } else {
+        delete updated._newPlainPwd;
       }
       await setClient({...updated});setShowEditInfo(false);setToast({msg:"Datos actualizados",type:"ok"});
     }catch(e){console.error(e);setToast({msg:ERR,type:"err"});}
@@ -495,9 +562,9 @@ export function ClientDetail({client,setClient,measurements,setMeasurements,rout
         }
       </div>
       <div style={{display:"flex",gap:8,justifyContent:"center"}}>
-        <button className={`btn ${client.disabled?"btn-ok":"btn-w"}`} onClick={doToggleDisabled}>
+        <SaveBtn className={`btn ${client.disabled?"btn-ok":"btn-w"}`} onClick={()=>wrap(doToggleDisabled)} saving={saving}>
           {client.disabled?"Sí, habilitar":"Sí, deshabilitar"}
-        </button>
+        </SaveBtn>
         <button className="btn btn-g" onClick={()=>setDisableConfirm(false)}>Cancelar</button>
       </div>
     </Modal>}
@@ -509,7 +576,7 @@ export function ClientDetail({client,setClient,measurements,setMeasurements,rout
         <div style={{fontSize:12,color:"#6B7A99"}}>Se eliminarán todos sus datos, rutinas asignadas y mediciones.</div>
       </div>
       <div style={{display:"flex",gap:8,justifyContent:"center"}}>
-        <button className="btn btn-d" onClick={doDelete}>Sí, eliminar</button>
+        <SaveBtn className="btn btn-d" onClick={()=>wrap(doDelete)} saving={saving}>Sí, eliminar</SaveBtn>
         <button className="btn btn-g" onClick={()=>setDeleteConfirm(null)}>Cancelar</button>
       </div>
     </Modal>}
@@ -529,20 +596,7 @@ export function ClientDetail({client,setClient,measurements,setMeasurements,rout
     {tab==="measurements"&&<MeasurementsTab client={client} measurements={measurements} setMeasurements={setMeasurements}/>}
     {tab==="history"&&<HistoryTab client={client} measurements={measurements} setMeasurements={setMeasurements}/>}
 
-    {showEditInfo&&<Modal title="Editar datos" onClose={()=>setShowEditInfo(false)}>
-      <div className="fr2">
-        <div className="fg"><label>Nombre</label><input className="inp" value={cForm.name||""} onChange={e=>setCForm({...cForm,name:e.target.value})}/></div>
-        <div className="fg"><label>Usuario</label><input className="inp" value={cForm.username||""} onChange={e=>setCForm({...cForm,username:e.target.value})}/></div>
-        <div className="fg"><label>Contraseña</label><PasswordInput value={cForm.password||""} onChange={e=>setCForm({...cForm,password:e.target.value})} autoComplete="new-password"/></div>
-        <div className="fg"><label>Cédula</label><input className="inp" value={cForm.cedula||""} onChange={e=>setCForm({...cForm,cedula:e.target.value})}/></div>
-        <div className="fg"><label>Teléfono</label><input className="inp" value={cForm.phone||""} onChange={e=>setCForm({...cForm,phone:e.target.value})}/></div>
-        <div className="fg"><label>Correo</label><input className="inp" type="email" value={cForm.email||""} onChange={e=>setCForm({...cForm,email:e.target.value})}/></div>
-        <div className="fg"><label>Fecha de nacimiento</label><input className="inp" type="date" value={cForm.dob||""} onChange={e=>setCForm({...cForm,dob:e.target.value})}/></div>
-        <div className="fg"><label>Estatura (cm)</label><input className="inp" type="number" value={cForm.height||""} onChange={e=>setCForm({...cForm,height:e.target.value})}/></div>
-      </div>
-      <div className="fg"><label>Notas internas</label><textarea className="ta" value={cForm.notes||""} onChange={e=>setCForm({...cForm,notes:e.target.value})}/></div>
-      <div style={{display:"flex",gap:8}}><button className="btn btn-p" onClick={saveInfo}>Guardar</button><button className="btn btn-g" onClick={()=>setShowEditInfo(false)}>Cancelar</button></div>
-    </Modal>}
+    {showEditInfo&&<EditClientModal cForm={cForm} setCForm={setCForm} onSave={()=>wrap(saveInfo)} saving={saving} onClose={()=>setShowEditInfo(false)}/>}
   </div>);
 }
 
@@ -551,20 +605,33 @@ export function ClientsPage({users,setUsers,routines,measurements,setMeasurement
   const[detail,setDetail]=useState(()=>selectedClientId?users.find(u=>u.id===selectedClientId)||null:null);
   const[showAdd,setShowAdd]=useState(false);
   const[form,setForm]=useState({name:"",username:"",password:"",phone:"",email:"",cedula:"",dob:"",height:"",notes:"",plan:{type:"Base",modality:"En Estudio",format:"Individual",startDate:"",endDate:"",price:""}});
+  const[newClientPwd,setNewClientPwd]=useState("");
+  const[newClientPwdCopied,setNewClientPwdCopied]=useState(false);
   const[err,setErr]=useState("");
   const[deleteConfirm,setDeleteConfirm]=useState(null);
   const[toast,setToast]=useState(null);
   const[search,setSearch]=useState("");
+  const[saving,wrap]=useSaving();
   const ERR="Hubo un problema al guardar. Intentá de nuevo en unos minutos.";
 
+  function handleGenNewClientPwd(){
+    const pwd=generatePassword();
+    setNewClientPwd(pwd);
+    setNewClientPwdCopied(false);
+    setForm(f=>({...f,password:pwd}));
+  }
+  function handleCopyNewClientPwd(){
+    navigator.clipboard.writeText(newClientPwd).then(()=>{setNewClientPwdCopied(true);setTimeout(()=>setNewClientPwdCopied(false),2000);});
+  }
+
   async function addClient(){
-    if(!form.name||!form.username||!form.password){setErr("Nombre, usuario y contraseña son requeridos");return}
+    if(!form.name||!form.username||!form.password){setErr("Nombre, usuario y contraseña son requeridos. Generá una contraseña primero.");return}
     if(users.some(u=>u.username===form.username)){setErr("Ese usuario ya existe");return}
     try{
       const hashed=await hashPassword(form.password);
       await setUsers([...users,{id:genId(),...form,password:hashed,role:"user",payments:[]}]);
       setForm({name:"",username:"",password:"",phone:"",email:"",cedula:"",dob:"",height:"",notes:"",plan:{type:"Base",modality:"En Estudio",format:"Individual",startDate:"",endDate:"",price:""}});
-      setErr("");setShowAdd(false);
+      setNewClientPwd("");setErr("");setShowAdd(false);
       setToast({msg:"Cliente creado correctamente",type:"ok"});
     }catch(e){console.error(e);setErr(ERR);}
   }
@@ -623,7 +690,17 @@ export function ClientsPage({users,setUsers,routines,measurements,setMeasurement
       <div className="fr2">
         <div className="fg"><label>Nombre *</label><input className="inp" value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="María García"/></div>
         <div className="fg"><label>Usuario *</label><input className="inp" value={form.username} onChange={e=>setForm({...form,username:e.target.value})} placeholder="maria.garcia"/></div>
-        <div className="fg"><label>Contraseña *</label><PasswordInput value={form.password} onChange={e=>setForm({...form,password:e.target.value})} autoComplete="new-password"/></div>
+        <div className="fg" style={{gridColumn:"1/-1"}}>
+          <label>Contraseña *</label>
+          <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginTop:4}}>
+            <button type="button" className="btn btn-s btn-sm" onClick={handleGenNewClientPwd}>🔑 Generar contraseña</button>
+            {newClientPwd&&(<>
+              <span style={{fontFamily:"monospace",fontWeight:700,fontSize:15,background:"#F0F4FF",border:"1px solid #C7D6F7",borderRadius:6,padding:"4px 10px",letterSpacing:2}}>{newClientPwd}</span>
+              <button type="button" className="btn btn-g btn-sm" onClick={handleCopyNewClientPwd}>{newClientPwdCopied?"✅ Copiado":"📋 Copiar"}</button>
+            </>)}
+          </div>
+          {!newClientPwd&&<div style={{fontSize:11,color:"#9E9E9E",marginTop:4}}>Generá una contraseña para enviársela al cliente.</div>}
+        </div>
         <div className="fg"><label>Cédula</label><input className="inp" value={form.cedula} onChange={e=>setForm({...form,cedula:e.target.value})}/></div>
         <div className="fg"><label>Teléfono</label><input className="inp" value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})}/></div>
         <div className="fg"><label>Correo</label><input className="inp" type="email" value={form.email} onChange={e=>setForm({...form,email:e.target.value})}/></div>
@@ -644,7 +721,7 @@ export function ClientsPage({users,setUsers,routines,measurements,setMeasurement
           <div className="fg"><label>Precio (₡/$)</label><input className="inp" type="number" value={form.plan.price} onChange={e=>setForm({...form,plan:{...form.plan,price:e.target.value}})}/></div>
         </div>
       </div>
-      <div style={{display:"flex",gap:8,marginTop:4}}><button className="btn btn-p" onClick={addClient}>Crear cliente</button><button className="btn btn-g" onClick={()=>setShowAdd(false)}>Cancelar</button></div>
+      <div style={{display:"flex",gap:8,marginTop:4}}><SaveBtn onClick={()=>wrap(addClient)} saving={saving}>Crear cliente</SaveBtn><button className="btn btn-g" onClick={()=>setShowAdd(false)}>Cancelar</button></div>
     </Modal>}
 
     {deleteConfirm&&<Modal title="⚠️ Eliminar cliente" onClose={()=>setDeleteConfirm(null)}>
@@ -655,7 +732,7 @@ export function ClientsPage({users,setUsers,routines,measurements,setMeasurement
         <div style={{fontSize:12,color:"#6B7A99"}}>Se eliminarán todos sus datos, rutinas asignadas y mediciones.</div>
       </div>
       <div style={{display:"flex",gap:8,justifyContent:"center"}}>
-        <button className="btn btn-d" onClick={doDelete}>Sí, eliminar</button>
+        <SaveBtn className="btn btn-d" onClick={()=>wrap(doDelete)} saving={saving}>Sí, eliminar</SaveBtn>
         <button className="btn btn-g" onClick={()=>setDeleteConfirm(null)}>Cancelar</button>
       </div>
     </Modal>}
@@ -666,6 +743,7 @@ export function ClientsPage({users,setUsers,routines,measurements,setMeasurement
 export function ExercisesPage({exercises,setExercises}){
   const[tab,setTab]=useState("normal");const[filter,setFilter]=useState("Todos");const[search,setSearch]=useState("");const[showAdd,setShowAdd]=useState(false);const[editing,setEditing]=useState(null);const[videoEx,setVideoEx]=useState(null);const[form,setForm]=useState({name:"",videoUrl:"",muscleGroup:"Piernas",type:"normal",equipment:"Ninguno"});
   const[toast,setToast]=useState(null);
+  const[saving,wrap]=useSaving();
   const ERR="Hubo un problema al guardar. Intentá de nuevo en unos minutos.";
   const list=exercises.filter(e=>e.type===tab&&(filter==="Todos"||e.muscleGroup===filter)&&e.name.toLowerCase().includes(search.toLowerCase()));
   function openAdd(){setForm({name:"",videoUrl:"",muscleGroup:"Piernas",type:tab,equipment:"Ninguno"});setEditing(null);setShowAdd(true)}
@@ -715,14 +793,14 @@ export function ExercisesPage({exercises,setExercises}){
       </div>
       <div className="fg"><label>Equipo</label><select className="sel" value={form.equipment} onChange={e=>setForm({...form,equipment:e.target.value})}>{EQUIPMENT_TYPES.map(eq=><option key={eq} value={eq}>{eq}</option>)}</select></div>
       <div className="fg"><label>URL Video (YouTube)</label><input className="inp" value={form.videoUrl} onChange={e=>setForm({...form,videoUrl:e.target.value})} placeholder="https://www.youtube.com/..."/></div>
-      <div style={{display:"flex",gap:8}}><button className="btn btn-p" onClick={save}>{editing?"Guardar":"Crear"}</button><button className="btn btn-g" onClick={()=>setShowAdd(false)}>Cancelar</button></div>
+      <div style={{display:"flex",gap:8}}><SaveBtn onClick={()=>wrap(save)} saving={saving}>{editing?"Guardar":"Crear"}</SaveBtn><button className="btn btn-g" onClick={()=>setShowAdd(false)}>Cancelar</button></div>
     </Modal>}
     {videoEx&&<VideoModal name={videoEx.name} url={videoEx.videoUrl} onClose={()=>setVideoEx(null)}/>}
   </div>);
 }
 
 // ── ROUTINE EDITOR ──
-export function RoutineEditor({routine,exercises,users,onSave,onBack}){
+export function RoutineEditor({routine,exercises,users,onSave,onBack,saving=false}){
   const blank={id:genId(),userId:"",title:"Nueva Rutina",daysPerWeek:0,note:"",days:[],warmupStretchIds:[],cooldownStretchIds:[]};
   const[rt,setRt]=useState(()=>routine?JSON.parse(JSON.stringify(routine)):blank);
   const[selDay,setSelDay]=useState(0);const[exPicker,setExPicker]=useState(null);const[strPicker,setStrPicker]=useState(null);
@@ -749,7 +827,7 @@ export function RoutineEditor({routine,exercises,users,onSave,onBack}){
 
   return(<div>
     <button className="back-btn" onClick={onBack}>← Volver a Rutinas</button>
-    <div className="ph"><div><div className="pt">{routine?"Editar Rutina":"Nueva Rutina"}</div></div><button className="btn btn-ok" onClick={()=>onSave(rt)}>💾 Guardar</button></div>
+    <div className="ph"><div><div className="pt">{routine?"Editar Rutina":"Nueva Rutina"}</div></div><SaveBtn className="btn btn-ok" onClick={()=>onSave(rt)} saving={saving}>💾 Guardar</SaveBtn></div>
     <div className="card" style={{marginBottom:12}}>
       <div className="fr2">
         <div className="fg"><label>Título</label><input className="inp" value={rt.title} onChange={e=>setRt(r=>({...r,title:e.target.value}))}/></div>
@@ -802,7 +880,7 @@ export function RoutineEditor({routine,exercises,users,onSave,onBack}){
     </>}
     {rt.days.length===0&&<div className="card"><div className="empty"><div className="ico">📅</div><p>Selecciona los días por semana arriba</p></div></div>}
     <div style={{display:"flex",gap:8,marginTop:14,paddingTop:14,borderTop:"1px solid #DDE4F0"}}>
-      <button className="btn btn-ok" onClick={()=>onSave(rt)}>💾 Guardar rutina</button>
+      <SaveBtn className="btn btn-ok" onClick={()=>onSave(rt)} saving={saving}>💾 Guardar rutina</SaveBtn>
       <button className="btn btn-g" onClick={onBack}>Cancelar</button>
     </div>
     {exPicker&&<ExercisePicker exercises={exercises} onPick={ex=>addEx(exPicker.dayIdx,exPicker.gIdx,ex)} onClose={()=>setExPicker(null)}/>}
@@ -815,6 +893,7 @@ export function RoutinesPage({routines,setRoutines,users,setUsers,exercises}){
   const[editing,setEditing]=useState(null);
   const[filterUser,setFilterUser]=useState("__all__");
   const[toast,setToast]=useState(null);
+  const[saving,wrap]=useSaving();
   const ERR="Hubo un problema al guardar. Intentá de nuevo en unos minutos.";
 
   async function saveRoutine(rt){
@@ -859,7 +938,7 @@ export function RoutinesPage({routines,setRoutines,users,setUsers,exercises}){
       return new Date(b.createdAt||b.updatedAt||0)-new Date(a.createdAt||a.updatedAt||0);
     });
 
-  if(editing!==null)return<RoutineEditor routine={editing==="__new__"?null:editing} exercises={exercises} users={users} onSave={saveRoutine} onBack={()=>setEditing(null)}/>;
+  if(editing!==null)return<RoutineEditor routine={editing==="__new__"?null:editing} exercises={exercises} users={users} onSave={rt=>wrap(()=>saveRoutine(rt))} saving={saving} onBack={()=>setEditing(null)}/>;
   return(<div>
     {toast&&<Toast msg={toast.msg} type={toast.type} onDone={()=>setToast(null)}/>}
     <div className="ph"><div><div className="pt">Rutinas</div><div className="ps">{filtered.length} rutina{filtered.length!==1?"s":""}</div></div><button className="btn btn-p" onClick={()=>setEditing("__new__")}>+ Nueva</button></div>
@@ -1143,6 +1222,10 @@ export function MyProfilePage({user,setUsers,users,measurements}){
   const[editing,setEditing]=useState(false);
   const[form,setForm]=useState({...user});
   const[toast,setToast]=useState(null);
+  const[saving,wrap]=useSaving();
+  const[showChangePwd,setShowChangePwd]=useState(false);
+  const[pwdForm,setPwdForm]=useState({nueva:"",confirmar:""});
+  const[pwdErr,setPwdErr]=useState("");
   const ERR="Hubo un problema al guardar. Intentá de nuevo en unos minutos.";
   const photoKey="jh_photo_"+user.id;
   const[photo,setPhoto]=useState(()=>localStorage.getItem(photoKey)||"");
@@ -1159,6 +1242,18 @@ export function MyProfilePage({user,setUsers,users,measurements}){
       await setUsers(users.map(u=>u.id===user.id?{...u,...form}:u));
       setEditing(false);
       setToast({msg:"Perfil actualizado",type:"ok"});
+    }catch(e){console.error(e);setToast({msg:ERR,type:"err"});}
+  }
+
+  async function savePassword(){
+    setPwdErr("");
+    if(!pwdForm.nueva){setPwdErr("Ingresá una contraseña.");return;}
+    if(pwdForm.nueva!==pwdForm.confirmar){setPwdErr("Las contraseñas no coinciden.");return;}
+    try{
+      const hashed=await hashPassword(pwdForm.nueva);
+      await setUsers(users.map(u=>u.id===user.id?{...u,password:hashed}:u));
+      setShowChangePwd(false);setPwdForm({nueva:"",confirmar:""});
+      setToast({msg:"Contraseña actualizada",type:"ok"});
     }catch(e){console.error(e);setToast({msg:ERR,type:"err"});}
   }
 
@@ -1191,7 +1286,7 @@ export function MyProfilePage({user,setUsers,users,measurements}){
 
     {tab==="info"&&(<div>
       <div className="card" style={{marginBottom:12}}>
-        <div className="sa"><div style={{fontWeight:700,fontSize:13}}>Mis datos</div><button className="btn btn-s btn-sm" onClick={()=>{setForm({...user});setEditing(true)}}>✏️ Editar</button></div>
+        <div className="sa"><div style={{fontWeight:700,fontSize:13}}>Mis datos</div><div style={{display:"flex",gap:6}}><button className="btn btn-s btn-sm" onClick={()=>{setForm({...user});setEditing(true);setShowChangePwd(false);setPwdForm({nueva:"",confirmar:""});setPwdErr("");}}>✏️ Editar</button></div></div>
         {[["Correo",user.email],["Teléfono",user.phone],["Cédula",user.cedula],["Fecha nac.",fmtDate(user.dob)],["Edad",age!==null?(age+" años"):"—"],["Estatura",user.height?(user.height+" cm"):"—"]].map(([k,v])=>(<div key={k} style={{display:"flex",justifyContent:"space-between",padding:"9px 0",borderBottom:"1px solid #DDE4F0",fontSize:13}}><span style={{color:"#6B7A99"}}>{k}</span><span style={{fontWeight:600}}>{v||"—"}</span></div>))}
       </div>
       <div className="card">
@@ -1212,7 +1307,17 @@ export function MyProfilePage({user,setUsers,users,measurements}){
           <div className="fg"><label>Fecha de nacimiento</label><input className="inp" type="date" value={form.dob||""} onChange={e=>setForm({...form,dob:e.target.value})}/></div>
           <div className="fg"><label>Estatura (cm)</label><input className="inp" type="number" value={form.height||""} onChange={e=>setForm({...form,height:e.target.value})}/></div>
         </div>
-        <div style={{display:"flex",gap:8}}><button className="btn btn-p" onClick={saveProfile}>Guardar</button><button className="btn btn-g" onClick={()=>setEditing(false)}>Cancelar</button></div>
+        <div style={{borderTop:"1px solid #DDE4F0",paddingTop:12,marginTop:4}}>
+          {!showChangePwd&&<button type="button" className="btn btn-w btn-sm" onClick={()=>{setShowChangePwd(true);setPwdForm({nueva:"",confirmar:""});setPwdErr("");}}>🔐 Cambiar contraseña</button>}
+          {showChangePwd&&(<div>
+            <div style={{fontSize:11,fontWeight:700,color:"#6B7A99",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Nueva contraseña</div>
+            {pwdErr&&<div className="err">{pwdErr}</div>}
+            <div className="fg"><label>Nueva contraseña</label><PasswordInput value={pwdForm.nueva} onChange={e=>setPwdForm({...pwdForm,nueva:e.target.value})} autoComplete="new-password"/></div>
+            <div className="fg"><label>Confirmar contraseña</label><PasswordInput value={pwdForm.confirmar} onChange={e=>setPwdForm({...pwdForm,confirmar:e.target.value})} autoComplete="new-password"/></div>
+            <div style={{display:"flex",gap:8,marginTop:4}}><SaveBtn className="btn btn-p btn-sm" onClick={()=>wrap(savePassword)} saving={saving}>Guardar contraseña</SaveBtn><button className="btn btn-g btn-sm" onClick={()=>setShowChangePwd(false)}>Cancelar</button></div>
+          </div>)}
+        </div>
+        <div style={{display:"flex",gap:8,marginTop:12}}><SaveBtn onClick={()=>wrap(saveProfile)} saving={saving}>Guardar datos</SaveBtn><button className="btn btn-g" onClick={()=>setEditing(false)}>Cancelar</button></div>
       </Modal>}
     </div>)}
 
