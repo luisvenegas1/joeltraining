@@ -4,7 +4,10 @@ import {
   getExercises, upsertExercise, deleteExercise,
   getRoutines, upsertRoutine, deleteRoutine,
   getMeasurements, upsertMeasurement, deleteMeasurement,
+  getWorkoutSessions, upsertWorkoutSession, deleteWorkoutSession,
+  getCatalogs, setCatalogCategory,
 } from "./db";
+import { CatalogContext, buildCatalogValue } from "./johel-training.catalogs";
 import { STYLES } from "./johel-training.styles";
 import { LoginPage, Sidebar, AppFooter } from "./johel-training.ui";
 import {
@@ -29,6 +32,8 @@ export default function App(){
   const[users,setUsersState]=useState([]);
   const[routines,setRoutinesState]=useState([]);
   const[measurements,setMeasurementsState]=useState([]);
+  const[workoutSessions,setWorkoutSessionsState]=useState([]);
+  const[catalogOverrides,setCatalogOverrides]=useState({});
   const[loading,setLoading]=useState(true);
   const[dbError,setDbError]=useState(null);
 
@@ -40,6 +45,12 @@ export default function App(){
         if(ex.length>0)setExercisesState(ex);
         setRoutinesState(rt);
         setMeasurementsState(ms);
+        // Sesiones de entrenamiento: falla suave si aún no corriste la migración SQL
+        try{const ws=await getWorkoutSessions();setWorkoutSessionsState(ws);}
+        catch(e){console.warn("Entrenamientos no disponibles (¿falta correr supabase-entrenamientos.sql?):",e);}
+        // Catálogos editables: falla suave si aún no corriste la migración SQL
+        try{const cats=await getCatalogs();setCatalogOverrides(cats);}
+        catch(e){console.warn("Catálogos no disponibles (¿falta correr supabase-catalogos.sql?):",e);}
       }catch(e){
         console.error("Error cargando datos:",e);
         setDbError("No se pudo conectar a la base de datos. Revisá tu conexión.");
@@ -102,6 +113,22 @@ export default function App(){
     catch(e){console.error("Error guardando medición:",e);throw e;}
   }
 
+  async function setWorkoutSessions(newWs){
+    const prev=workoutSessions;
+    setWorkoutSessionsState(newWs);
+    const deleted=prev.filter(p=>!newWs.find(n=>n.id===p.id));
+    const changed=newWs.filter(n=>{const old=prev.find(p=>p.id===n.id);return!old||JSON.stringify(old)!==JSON.stringify(n);});
+    try{await Promise.all([...changed.map(s=>upsertWorkoutSession(s)),...deleted.map(s=>deleteWorkoutSession(s.id))]);}
+    catch(e){console.error("Error guardando entrenamiento:",e);throw e;}
+  }
+
+  async function saveCategory(dbCat,labels){
+    setCatalogOverrides(prev=>({...prev,[dbCat]:labels}));
+    try{await setCatalogCategory(dbCat,labels);}
+    catch(e){console.error("Error guardando catálogo:",e);throw e;}
+  }
+  const catalogValue=buildCatalogValue(catalogOverrides,saveCategory);
+
   if(loading)return(<><style>{STYLES}</style><div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",flexDirection:"column",gap:16,background:"#F4F6FB"}}><div style={{width:48,height:48,border:"4px solid #DDE4F0",borderTop:"4px solid #1A5DC8",borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/><div style={{fontFamily:"'Barlow',sans-serif",fontSize:14,color:"#6B7A99"}}>Cargando...</div><style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style></div></>);
 
   if(dbError)return(<><style>{STYLES}</style><div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",flexDirection:"column",gap:12,background:"#F4F6FB",padding:24,textAlign:"center"}}><div style={{fontSize:32}}>⚠️</div><div style={{fontFamily:"'Barlow',sans-serif",fontSize:16,color:"#E53935",fontWeight:700}}>{dbError}</div><button className="btn btn-p" onClick={()=>window.location.reload()}>Reintentar</button></div></>);
@@ -113,16 +140,16 @@ export default function App(){
   let content;
   if(isT){
     if(page==="dashboard")content=<Dashboard users={users} routines={routines}/>;
-    else if(page==="clients")content=<ClientsPage users={users} setUsers={setUsers} routines={routines} measurements={measurements} setMeasurements={setMeasurements} selectedClientId={null}/>;
+    else if(page==="clients")content=<ClientsPage users={users} setUsers={setUsers} routines={routines} measurements={measurements} setMeasurements={setMeasurements} workoutSessions={workoutSessions} setWorkoutSessions={setWorkoutSessions} exercises={exercises} selectedClientId={null}/>;
     else if(page==="routines")content=<RoutinesPage routines={routines} setRoutines={setRoutines} users={users} setUsers={setUsers} exercises={exercises}/>;
     else if(page==="exercises")content=<ExercisesPage exercises={exercises} setExercises={setExercises}/>;
     else if(page==="admins")content=<AdminsPage/>;
   } else {
-    if(page==="my-routine")content=<MyRoutinePage user={liveUser} routines={routines} exercises={exercises}/>;
-    else if(page==="my-profile")content=<MyProfilePage user={liveUser} setUsers={setUsers} users={users} measurements={measurements}/>;
+    if(page==="my-routine")content=<MyRoutinePage user={liveUser} routines={routines} exercises={exercises} workoutSessions={workoutSessions} setWorkoutSessions={setWorkoutSessions}/>;
+    else if(page==="my-profile")content=<MyProfilePage user={liveUser} setUsers={setUsers} users={users} measurements={measurements} workoutSessions={workoutSessions} setWorkoutSessions={setWorkoutSessions} exercises={exercises}/>;
   }
 
-  return(<>
+  return(<CatalogContext.Provider value={catalogValue}>
     <style>{STYLES}</style>
     <div className="app">
       <Sidebar user={liveUser} page={page} setPage={setPage} onLogout={logout}/>
@@ -131,5 +158,5 @@ export default function App(){
         <AppFooter/>
       </main>
     </div>
-  </>);
+  </CatalogContext.Provider>);
 }

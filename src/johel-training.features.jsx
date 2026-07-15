@@ -1,21 +1,21 @@
 import { useState, useEffect, useRef } from "react";
 import {
   CHART_COLORS,
-  EQUIPMENT_TYPES,
   MEASUREMENT_FIELDS,
-  MUSCLE_GROUPS_FILTER,
   PAYMENT_PERIODS,
-  PLAN_FORMATS,
-  PLAN_MODALITIES,
-  PLAN_TYPES,
-  SURFACE_TYPES,
 } from "./johel-training.constants";
-import { addMonths, calcAge, daysLeft, fmtDate, genId, getPlanStatus, getPlanStatusFromEndDate, initials, planColor, useLS, hashPassword, generatePassword, useSaving } from "./johel-training.utils";
+import { useCatalogs, CATALOG_META } from "./johel-training.catalogs";
+import { addMonths, calcAge, daysLeft, fmtDate, genId, getPlanStatus, getPlanStatusFromEndDate, initials, planColor, useLS, hashPassword, generatePassword, useSaving, weekKey, weekLabel, monthKey, monthLabel, dayKey, fmtDuration, convertWeight } from "./johel-training.utils";
 import { Modal, PasswordInput, Toast, VideoModal, ExercisePicker, StretchPicker, Logo, SaveBtn } from "./johel-training.ui";
 
+// Bloquea el ingreso de valores negativos en inputs numéricos
+const preventNegKey=e=>{if(["-","e","E","+"].includes(e.key))e.preventDefault();};
+const stripNeg=v=>String(v).replace(/-/g,"");
+
 export function Dashboard({users}){
-  const enabled=users.filter(u=>!u.disabled);
-  const disabled=users.filter(u=>u.disabled);
+  const clients=users.filter(u=>u.role==="user");
+  const enabled=clients.filter(u=>!u.disabled);
+  const disabled=clients.filter(u=>u.disabled);
   const total=enabled.length;
   const active=enabled.filter(u=>getPlanStatus(u.plan)==="Activo").length;
   const expiring=enabled.filter(u=>{const d=daysLeft(u.plan?.endDate);return d!==null&&d>=0&&d<=30}).length;
@@ -71,6 +71,51 @@ export function Dashboard({users}){
   </div>);
 }
 
+// ── EDITOR DE CATÁLOGOS (listas editables) ──
+export function CatalogEditor(){
+  const cat=useCatalogs();
+  const[adding,setAdding]=useState(null);
+  const[newVal,setNewVal]=useState("");
+  const[busy,setBusy]=useState(false);
+  const[toast,setToast]=useState(null);
+  const ERR="No se pudo guardar. ¿Corriste supabase-catalogos.sql? Intentá de nuevo.";
+  async function addItem(m){
+    const v=newVal.trim();
+    if(!v){return;}
+    if(cat[m.key].some(x=>x.toLowerCase()===v.toLowerCase())){setNewVal("");setAdding(null);return;}
+    setBusy(true);
+    try{await cat.saveCategory(m.dbCat,[...cat[m.key],v]);setToast({msg:"Lista actualizada",type:"ok"});}
+    catch(e){console.error(e);setToast({msg:ERR,type:"err"});}
+    finally{setBusy(false);setNewVal("");setAdding(null);}
+  }
+  async function removeItem(m,item){
+    if(!confirm(`¿Quitar "${item}" de ${m.label}?`))return;
+    try{await cat.saveCategory(m.dbCat,cat[m.key].filter(x=>x!==item));setToast({msg:"Lista actualizada",type:"ok"});}
+    catch(e){console.error(e);setToast({msg:ERR,type:"err"});}
+  }
+  return(<div className="card" style={{marginTop:12}}>
+    {toast&&<Toast msg={toast.msg} type={toast.type} onDone={()=>setToast(null)}/>}
+    <div style={{fontWeight:700,fontSize:13,marginBottom:4}}>Catálogos (listas editables)</div>
+    <div style={{fontSize:11,color:"#6B7A99",marginBottom:8}}>Estas listas aparecen en los menús de rutinas, ejercicios y planes. Los cambios se aplican para todos.</div>
+    {CATALOG_META.map(m=>(<div key={m.key} style={{padding:"10px 0",borderTop:"1px solid #DDE4F0"}}>
+      <div style={{fontSize:12,fontWeight:700,color:"#0B1F4B",marginBottom:6}}>{m.label}</div>
+      <div style={{display:"flex",flexWrap:"wrap",gap:6,alignItems:"center"}}>
+        {cat[m.key].map(item=>(<span key={item} className="badge bd-gray" style={{display:"inline-flex",alignItems:"center",gap:6,padding:"6px 9px",textTransform:"none",fontSize:11}}>
+          {item}
+          {item!=="Ninguno"&&<button onClick={()=>removeItem(m,item)} title="Quitar" style={{background:"none",border:"none",cursor:"pointer",color:"#E53935",fontWeight:700,padding:0,lineHeight:1,fontSize:13}}>✕</button>}
+        </span>))}
+        {adding===m.dbCat?(<span style={{display:"inline-flex",gap:4,alignItems:"center"}}>
+          <input className="inp" autoFocus value={newVal} onChange={e=>setNewVal(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")addItem(m);if(e.key==="Escape"){setAdding(null);setNewVal("");}}} placeholder="Nuevo..." style={{width:140,minHeight:34,fontSize:12}}/>
+          <button className="btn btn-ok btn-sm" onClick={()=>addItem(m)} disabled={busy}>✓</button>
+          <button className="btn btn-g btn-sm" onClick={()=>{setAdding(null);setNewVal("");}}>✕</button>
+        </span>):(
+          <button className="btn btn-s btn-sm" onClick={()=>{setAdding(m.dbCat);setNewVal("");}}>+ Agregar</button>
+        )}
+      </div>
+    </div>))}
+  </div>);
+}
+
 // ── ADMINS PAGE ──
 export function AdminsPage(){
   const[admins,setAdmins]=useLS("jh_admins_v3",[]);
@@ -110,6 +155,7 @@ export function AdminsPage(){
       </div>
       <div style={{display:"flex",gap:8}}><button className="btn btn-p" onClick={add}>Crear</button><button className="btn btn-g" onClick={()=>setShowAdd(false)}>Cancelar</button></div>
     </Modal>}
+    <CatalogEditor/>
   </div>);
 }
 
@@ -226,7 +272,7 @@ export function PaymentModule({client,setClient}){
         </div>))}
       </div>
       <div className="fr2">
-        <div className="fg"><label>Monto (₡/$)</label><input className="inp" type="number" value={amount} onChange={e=>setAmount(e.target.value)} placeholder="0"/></div>
+        <div className="fg"><label>Monto (₡/$)</label><input className="inp" type="number" min={0} onKeyDown={preventNegKey} value={amount} onChange={e=>setAmount(stripNeg(e.target.value))} placeholder="0"/></div>
         <div className="fg"><label>Notas</label><input className="inp" value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Opcional"/></div>
       </div>
       <div style={{background:"#EFF6FF",borderRadius:8,padding:10,fontSize:12,marginBottom:12,color:"#1A5DC8"}}>
@@ -242,6 +288,7 @@ export function PaymentModule({client,setClient}){
 
 // ── PLAN EDITOR ──
 export function PlanEditor({client,onSave}){
+  const cat=useCatalogs();
   const[form,setForm]=useState(()=>({type:"Base",modality:"En Estudio",format:"Individual",startDate:"",endDate:"",price:"",notes:"",paused:false,pausedAt:null,...(client.plan||{})}));
   const[toast,setToast]=useState(null);
   const[saving,wrap]=useSaving();
@@ -290,9 +337,9 @@ export function PlanEditor({client,onSave}){
     </div>
 
     <div className="fr3">
-      <div className="fg"><label>Tipo</label><select className="sel" value={form.type} onChange={e=>setForm({...form,type:e.target.value})}>{PLAN_TYPES.map(t=><option key={t} value={t}>{t}</option>)}</select></div>
-      <div className="fg"><label>Modalidad</label><select className="sel" value={form.modality} onChange={e=>setForm({...form,modality:e.target.value})}>{PLAN_MODALITIES.map(m=><option key={m} value={m}>{m}</option>)}</select></div>
-      <div className="fg"><label>Formato</label><select className="sel" value={form.format} onChange={e=>setForm({...form,format:e.target.value})}>{PLAN_FORMATS.map(f=><option key={f} value={f}>{f}</option>)}</select></div>
+      <div className="fg"><label>Tipo</label><select className="sel" value={form.type} onChange={e=>setForm({...form,type:e.target.value})}>{cat.planTypes.map(t=><option key={t} value={t}>{t}</option>)}</select></div>
+      <div className="fg"><label>Modalidad</label><select className="sel" value={form.modality} onChange={e=>setForm({...form,modality:e.target.value})}>{cat.planModalities.map(m=><option key={m} value={m}>{m}</option>)}</select></div>
+      <div className="fg"><label>Formato</label><select className="sel" value={form.format} onChange={e=>setForm({...form,format:e.target.value})}>{cat.planFormats.map(f=><option key={f} value={f}>{f}</option>)}</select></div>
     </div>
     <div className="fr3">
       <div className="fg"><label>Fecha inicio</label><input className="inp" type="date" value={form.startDate||""} onChange={e=>setForm({...form,startDate:e.target.value})}/></div>
@@ -366,7 +413,7 @@ export function MeasurementsTab({client,measurements,setMeasurements}){
     </div>}
     {showAdd&&<Modal title={editingM?"Editar medición":"Registrar medición"} onClose={()=>setShowAdd(false)}>
       <div className="fg"><label>Fecha</label><input className="inp" type="date" value={mForm.date} onChange={e=>setMForm({...mForm,date:e.target.value})}/></div>
-      <div className="fr2">{MEASUREMENT_FIELDS.map(f=>(<div key={f.key} className="fg"><label>{f.label}{f.unit?` (${f.unit})`:""}</label><input className="inp" type="number" step="0.1" value={mForm[f.key]} onChange={e=>setMForm({...mForm,[f.key]:e.target.value})} placeholder="—"/></div>))}</div>
+      <div className="fr2">{MEASUREMENT_FIELDS.map(f=>(<div key={f.key} className="fg"><label>{f.label}{f.unit?` (${f.unit})`:""}</label><input className="inp" type="number" step="0.1" min={0} onKeyDown={preventNegKey} value={mForm[f.key]} onChange={e=>setMForm({...mForm,[f.key]:stripNeg(e.target.value)})} placeholder="—"/></div>))}</div>
       <div style={{display:"flex",gap:8}}><SaveBtn onClick={()=>wrap(save)} saving={saving}>{editingM?"Guardar cambios":"Guardar"}</SaveBtn><button className="btn btn-g" onClick={()=>setShowAdd(false)}>Cancelar</button></div>
     </Modal>}
   </div>);
@@ -473,7 +520,7 @@ function EditClientModal({cForm,setCForm,onSave,onClose,saving=false}){
       <div className="fg"><label>Teléfono</label><input className="inp" value={cForm.phone||""} onChange={e=>setCForm({...cForm,phone:e.target.value})}/></div>
       <div className="fg"><label>Correo</label><input className="inp" type="email" value={cForm.email||""} onChange={e=>setCForm({...cForm,email:e.target.value})}/></div>
       <div className="fg"><label>Fecha de nacimiento</label><input className="inp" type="date" value={cForm.dob||""} onChange={e=>setCForm({...cForm,dob:e.target.value})}/></div>
-      <div className="fg"><label>Estatura (cm)</label><input className="inp" type="number" value={cForm.height||""} onChange={e=>setCForm({...cForm,height:e.target.value})}/></div>
+      <div className="fg"><label>Estatura (cm)</label><input className="inp" type="number" min={0} onKeyDown={preventNegKey} value={cForm.height||""} onChange={e=>setCForm({...cForm,height:stripNeg(e.target.value)})}/></div>
     </div>
     <div className="fg"><label>Notas internas</label><textarea className="ta" value={cForm.notes||""} onChange={e=>setCForm({...cForm,notes:e.target.value})}/></div>
     <div style={{borderTop:"1px solid #DDE4F0",paddingTop:12,marginTop:4}}>
@@ -487,7 +534,7 @@ function EditClientModal({cForm,setCForm,onSave,onClose,saving=false}){
 }
 
 // ── CLIENT DETAIL ──
-export function ClientDetail({client,setClient,measurements,setMeasurements,routines,onBack,onDelete,deleteConfirm,setDeleteConfirm,doDelete}){
+export function ClientDetail({client,setClient,measurements,setMeasurements,workoutSessions=[],setWorkoutSessions,routines,onBack,onDelete,deleteConfirm,setDeleteConfirm,doDelete}){
   const[tab,setTab]=useState("info");
   const[showEditInfo,setShowEditInfo]=useState(false);
   const[cForm,setCForm]=useState({...client});
@@ -581,7 +628,7 @@ export function ClientDetail({client,setClient,measurements,setMeasurements,rout
       </div>
     </Modal>}
     <div className="tabs">
-      {[["info","👤 Info"],["plan","💳 Plan"],["payments","💰 Pagos"],["measurements","📊 Medición"],["history","📈 Historial"]].map(([id,lbl])=>(<div key={id} className={`tab${tab===id?" active":""}`} onClick={()=>setTab(id)}>{lbl}</div>))}
+      {[["info","👤 Info"],["plan","💳 Plan"],["payments","💰 Pagos"],["workouts","🏋️ Entrenos"],["measurements","📊 Medición"],["history","📈 Historial"]].map(([id,lbl])=>(<div key={id} className={`tab${tab===id?" active":""}`} onClick={()=>setTab(id)}>{lbl}</div>))}
     </div>
 
     {tab==="info"&&(<div className="card">
@@ -593,6 +640,11 @@ export function ClientDetail({client,setClient,measurements,setMeasurements,rout
 
     {tab==="plan"&&<PlanEditor client={client} onSave={savePlan}/>}
     {tab==="payments"&&<div className="card"><PaymentModule client={client} setClient={setClient}/></div>}
+    {tab==="workouts"&&<WorkoutHistory sessions={workoutSessions.filter(s=>s.userId===client.id)} onDeleteSession={setWorkoutSessions?async id=>{
+      if(!confirm("¿Eliminar este entrenamiento del historial?"))return;
+      try{await setWorkoutSessions(workoutSessions.filter(s=>s.id!==id));setToast({msg:"Entrenamiento eliminado",type:"ok"});}
+      catch(e){console.error(e);setToast({msg:ERR,type:"err"});}
+    }:undefined}/>}
     {tab==="measurements"&&<MeasurementsTab client={client} measurements={measurements} setMeasurements={setMeasurements}/>}
     {tab==="history"&&<HistoryTab client={client} measurements={measurements} setMeasurements={setMeasurements}/>}
 
@@ -601,7 +653,8 @@ export function ClientDetail({client,setClient,measurements,setMeasurements,rout
 }
 
 // ── CLIENTS LIST ──
-export function ClientsPage({users,setUsers,routines,measurements,setMeasurements,selectedClientId}){
+export function ClientsPage({users,setUsers,routines,measurements,setMeasurements,workoutSessions=[],setWorkoutSessions,selectedClientId}){
+  const cat=useCatalogs();
   const[detail,setDetail]=useState(()=>selectedClientId?users.find(u=>u.id===selectedClientId)||null:null);
   const[showAdd,setShowAdd]=useState(false);
   const[form,setForm]=useState({name:"",username:"",password:"",phone:"",email:"",cedula:"",dob:"",height:"",notes:"",plan:{type:"Base",modality:"En Estudio",format:"Individual",startDate:"",endDate:"",price:""}});
@@ -656,6 +709,8 @@ export function ClientsPage({users,setUsers,routines,measurements,setMeasurement
       setClient={c=>updateClient({...live,...c})}
       measurements={measurements}
       setMeasurements={setMeasurements}
+      workoutSessions={workoutSessions}
+      setWorkoutSessions={setWorkoutSessions}
       routines={routines}
       onBack={()=>setDetail(null)}
       onDelete={()=>confirmDelete(live)}
@@ -705,20 +760,20 @@ export function ClientsPage({users,setUsers,routines,measurements,setMeasurement
         <div className="fg"><label>Teléfono</label><input className="inp" value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})}/></div>
         <div className="fg"><label>Correo</label><input className="inp" type="email" value={form.email} onChange={e=>setForm({...form,email:e.target.value})}/></div>
         <div className="fg"><label>Fecha de nacimiento</label><input className="inp" type="date" value={form.dob} onChange={e=>setForm({...form,dob:e.target.value})}/></div>
-        <div className="fg"><label>Estatura (cm)</label><input className="inp" type="number" value={form.height} onChange={e=>setForm({...form,height:e.target.value})}/></div>
+        <div className="fg"><label>Estatura (cm)</label><input className="inp" type="number" min={0} onKeyDown={preventNegKey} value={form.height} onChange={e=>setForm({...form,height:stripNeg(e.target.value)})}/></div>
       </div>
       <div className="fg"><label>Notas internas</label><textarea className="ta" value={form.notes} onChange={e=>setForm({...form,notes:e.target.value})} rows={2}/></div>
       <div style={{borderTop:"1px solid #DDE4F0",paddingTop:12,marginTop:4}}>
         <div style={{fontSize:11,fontWeight:700,color:"#6B7A99",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Plan</div>
         <div className="fr3">
-          <div className="fg"><label>Tipo</label><select className="sel" value={form.plan.type} onChange={e=>setForm({...form,plan:{...form.plan,type:e.target.value}})}>{PLAN_TYPES.map(t=><option key={t}>{t}</option>)}</select></div>
-          <div className="fg"><label>Modalidad</label><select className="sel" value={form.plan.modality} onChange={e=>setForm({...form,plan:{...form.plan,modality:e.target.value}})}>{PLAN_MODALITIES.map(m=><option key={m}>{m}</option>)}</select></div>
-          <div className="fg"><label>Formato</label><select className="sel" value={form.plan.format} onChange={e=>setForm({...form,plan:{...form.plan,format:e.target.value}})}>{PLAN_FORMATS.map(f=><option key={f}>{f}</option>)}</select></div>
+          <div className="fg"><label>Tipo</label><select className="sel" value={form.plan.type} onChange={e=>setForm({...form,plan:{...form.plan,type:e.target.value}})}>{cat.planTypes.map(t=><option key={t}>{t}</option>)}</select></div>
+          <div className="fg"><label>Modalidad</label><select className="sel" value={form.plan.modality} onChange={e=>setForm({...form,plan:{...form.plan,modality:e.target.value}})}>{cat.planModalities.map(m=><option key={m}>{m}</option>)}</select></div>
+          <div className="fg"><label>Formato</label><select className="sel" value={form.plan.format} onChange={e=>setForm({...form,plan:{...form.plan,format:e.target.value}})}>{cat.planFormats.map(f=><option key={f}>{f}</option>)}</select></div>
         </div>
         <div className="fr2">
           <div className="fg"><label>Fecha inicio</label><input className="inp" type="date" value={form.plan.startDate} onChange={e=>setForm({...form,plan:{...form.plan,startDate:e.target.value}})}/></div>
           <div className="fg"><label>Fecha vencimiento</label><input className="inp" type="date" value={form.plan.endDate} onChange={e=>setForm({...form,plan:{...form.plan,endDate:e.target.value}})}/></div>
-          <div className="fg"><label>Precio (₡/$)</label><input className="inp" type="number" value={form.plan.price} onChange={e=>setForm({...form,plan:{...form.plan,price:e.target.value}})}/></div>
+          <div className="fg"><label>Precio (₡/$)</label><input className="inp" type="number" min={0} onKeyDown={preventNegKey} value={form.plan.price} onChange={e=>setForm({...form,plan:{...form.plan,price:stripNeg(e.target.value)}})}/></div>
         </div>
       </div>
       <div style={{display:"flex",gap:8,marginTop:4}}><SaveBtn onClick={()=>wrap(addClient)} saving={saving}>Crear cliente</SaveBtn><button className="btn btn-g" onClick={()=>setShowAdd(false)}>Cancelar</button></div>
@@ -741,6 +796,7 @@ export function ClientsPage({users,setUsers,routines,measurements,setMeasurement
 
 // ── EXERCISES ──
 export function ExercisesPage({exercises,setExercises}){
+  const cat=useCatalogs();
   const[tab,setTab]=useState("normal");const[filter,setFilter]=useState("Todos");const[search,setSearch]=useState("");const[showAdd,setShowAdd]=useState(false);const[editing,setEditing]=useState(null);const[videoEx,setVideoEx]=useState(null);const[form,setForm]=useState({name:"",videoUrl:"",muscleGroup:"Piernas",type:"normal",equipment:"Ninguno"});
   const[toast,setToast]=useState(null);
   const[saving,wrap]=useSaving();
@@ -783,15 +839,15 @@ export function ExercisesPage({exercises,setExercises}){
       <div className="fg"><label>Nombre</label><input className="inp" value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="Nombre del ejercicio"/></div>
       <div className="fr2">
         <div className="fg"><label>Grupo muscular</label>
-              <select className="sel" value={MUSCLE_GROUPS_FILTER.slice(1).includes(form.muscleGroup)?form.muscleGroup:"__custom__"} onChange={e=>{if(e.target.value!=="__custom__")setForm({...form,muscleGroup:e.target.value})}}>
-                {MUSCLE_GROUPS_FILTER.slice(1).map(g=><option key={g} value={g}>{g}</option>)}
-                {!MUSCLE_GROUPS_FILTER.slice(1).includes(form.muscleGroup)&&form.muscleGroup&&<option value="__custom__">{form.muscleGroup}</option>}
+              <select className="sel" value={cat.muscleGroups.includes(form.muscleGroup)?form.muscleGroup:"__custom__"} onChange={e=>{if(e.target.value!=="__custom__")setForm({...form,muscleGroup:e.target.value})}}>
+                {cat.muscleGroups.map(g=><option key={g} value={g}>{g}</option>)}
+                {!cat.muscleGroups.includes(form.muscleGroup)&&form.muscleGroup&&<option value="__custom__">{form.muscleGroup}</option>}
               </select>
               <input className="inp" style={{marginTop:4,fontSize:12}} value={form.muscleGroup} onChange={e=>setForm({...form,muscleGroup:e.target.value})} placeholder="O escribe uno nuevo..."/>
             </div>
         <div className="fg"><label>Tipo</label><select className="sel" value={form.type} onChange={e=>setForm({...form,type:e.target.value})}><option value="normal">Normal</option><option value="stretching">Estiramiento</option></select></div>
       </div>
-      <div className="fg"><label>Equipo</label><select className="sel" value={form.equipment} onChange={e=>setForm({...form,equipment:e.target.value})}>{EQUIPMENT_TYPES.map(eq=><option key={eq} value={eq}>{eq}</option>)}</select></div>
+      <div className="fg"><label>Equipo</label><select className="sel" value={form.equipment} onChange={e=>setForm({...form,equipment:e.target.value})}>{cat.equipment.map(eq=><option key={eq} value={eq}>{eq}</option>)}</select></div>
       <div className="fg"><label>URL Video (YouTube)</label><input className="inp" value={form.videoUrl} onChange={e=>setForm({...form,videoUrl:e.target.value})} placeholder="https://www.youtube.com/..."/></div>
       <div style={{display:"flex",gap:8}}><SaveBtn onClick={()=>wrap(save)} saving={saving}>{editing?"Guardar":"Crear"}</SaveBtn><button className="btn btn-g" onClick={()=>setShowAdd(false)}>Cancelar</button></div>
     </Modal>}
@@ -800,10 +856,38 @@ export function ExercisesPage({exercises,setExercises}){
 }
 
 // ── ROUTINE EDITOR ──
+// ¿Este ejercicio de la rutina ya tiene datos cargados por el coach?
+function exHasData(ex){
+  return (ex.weightAmount!=null&&String(ex.weightAmount).trim()!=="")
+    ||(ex.notes&&String(ex.notes).trim()!=="")
+    ||(ex.surface&&ex.surface!=="Ninguno");
+}
+// Copia peso/unidad/equipo/superficie/notas del primer ejercicio con datos
+// a las demás instancias del MISMO ejercicio (en la misma rutina) que estén vacías.
+function propagateExerciseData(rt){
+  const sources={};
+  rt.days.forEach(d=>d.groups.forEach(g=>g.exercises.forEach(ex=>{
+    if(exHasData(ex)&&!sources[ex.exId]){
+      sources[ex.exId]={weightAmount:ex.weightAmount,weightUnit:ex.weightUnit,equipment:ex.equipment,surface:ex.surface,notes:ex.notes};
+    }
+  })));
+  const days=rt.days.map(d=>({...d,groups:d.groups.map(g=>({...g,exercises:g.exercises.map(ex=>{
+    if(!exHasData(ex)&&sources[ex.exId])return{...ex,...sources[ex.exId]};
+    return ex;
+  })}))}));
+  return{...rt,days};
+}
+
 export function RoutineEditor({routine,exercises,users,onSave,onBack,saving=false}){
+  const cat=useCatalogs();
   const blank={id:genId(),userId:"",title:"Nueva Rutina",daysPerWeek:0,note:"",days:[],warmupStretchIds:[],cooldownStretchIds:[]};
   const[rt,setRt]=useState(()=>routine?JSON.parse(JSON.stringify(routine)):blank);
   const[selDay,setSelDay]=useState(0);const[exPicker,setExPicker]=useState(null);const[strPicker,setStrPicker]=useState(null);
+  function saveRoutine(){
+    const next=propagateExerciseData(rt);
+    setRt(next);
+    onSave(next);
+  }
 
   function updateDays(count){
     if(!count){setRt(r=>({...r,daysPerWeek:0,days:[]}));return}
@@ -827,7 +911,7 @@ export function RoutineEditor({routine,exercises,users,onSave,onBack,saving=fals
 
   return(<div>
     <button className="back-btn" onClick={onBack}>← Volver a Rutinas</button>
-    <div className="ph"><div><div className="pt">{routine?"Editar Rutina":"Nueva Rutina"}</div></div><SaveBtn className="btn btn-ok" onClick={()=>onSave(rt)} saving={saving}>💾 Guardar</SaveBtn></div>
+    <div className="ph"><div><div className="pt">{routine?"Editar Rutina":"Nueva Rutina"}</div></div><SaveBtn className="btn btn-ok" onClick={saveRoutine} saving={saving}>💾 Guardar</SaveBtn></div>
     <div className="card" style={{marginBottom:12}}>
       <div className="fr2">
         <div className="fg"><label>Título</label><input className="inp" value={rt.title} onChange={e=>setRt(r=>({...r,title:e.target.value}))}/></div>
@@ -864,11 +948,11 @@ export function RoutineEditor({routine,exercises,users,onSave,onBack,saving=fals
             {g.exercises.map((ex,ei)=>{const info=exercises.find(e=>e.id===ex.exId);return(<div key={ei} style={{borderBottom:"1px solid #DDE4F0",paddingBottom:10,marginBottom:10}}>
               <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6}}><strong style={{fontSize:13,flex:1}}>{info?.name||"?"}</strong><span className="badge bd-blue" style={{fontSize:9}}>{info?.muscleGroup}</span><button className="ibtn d" onClick={()=>removeEx(selDay,gi,ei)}>✕</button></div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
-                <div><label style={{fontSize:9}}>Series</label><input className="inp" type="number" min={1} value={ex.series} onChange={e=>updEx(selDay,gi,ei,"series",Number(e.target.value))}/></div>
+                <div><label style={{fontSize:9}}>Series</label><input className="inp" type="number" min={1} onKeyDown={preventNegKey} value={ex.series} onChange={e=>updEx(selDay,gi,ei,"series",Number(e.target.value))}/></div>
                 <div><label style={{fontSize:9}}>Reps / Duración</label><input className="inp" value={ex.reps} onChange={e=>updEx(selDay,gi,ei,"reps",e.target.value)}/></div>
-                <div><label style={{fontSize:9}}>Peso</label><div style={{display:"flex",gap:3}}><input className="inp" style={{flex:1}} type="number" value={ex.weightAmount} onChange={e=>updEx(selDay,gi,ei,"weightAmount",e.target.value)} placeholder="0"/><select className="sel" style={{width:65}} value={ex.weightUnit} onChange={e=>updEx(selDay,gi,ei,"weightUnit",e.target.value)}><option value="lbs">lbs</option><option value="kg">kg</option></select></div></div>
-                <div><label style={{fontSize:9}}>Equipo</label><select className="sel" value={ex.equipment} onChange={e=>updEx(selDay,gi,ei,"equipment",e.target.value)}>{EQUIPMENT_TYPES.map(eq=><option key={eq} value={eq}>{eq}</option>)}</select></div>
-                <div><label style={{fontSize:9}}>Superficie</label><select className="sel" value={ex.surface||"Ninguno"} onChange={e=>updEx(selDay,gi,ei,"surface",e.target.value)}>{SURFACE_TYPES.map(s=><option key={s} value={s}>{s}</option>)}</select></div>
+                <div><label style={{fontSize:9}}>Peso</label><div style={{display:"flex",gap:3}}><input className="inp" style={{flex:1}} type="number" min={0} onKeyDown={preventNegKey} value={ex.weightAmount} onChange={e=>updEx(selDay,gi,ei,"weightAmount",stripNeg(e.target.value))} placeholder="0"/><select className="sel" style={{width:65}} value={ex.weightUnit} onChange={e=>updEx(selDay,gi,ei,"weightUnit",e.target.value)}><option value="lbs">lbs</option><option value="kg">kg</option></select></div></div>
+                <div><label style={{fontSize:9}}>Equipo</label><select className="sel" value={ex.equipment} onChange={e=>updEx(selDay,gi,ei,"equipment",e.target.value)}>{cat.equipment.map(eq=><option key={eq} value={eq}>{eq}</option>)}</select></div>
+                <div><label style={{fontSize:9}}>Superficie</label><select className="sel" value={ex.surface||"Ninguno"} onChange={e=>updEx(selDay,gi,ei,"surface",e.target.value)}>{cat.surface.map(s=><option key={s} value={s}>{s}</option>)}</select></div>
                 <div><label style={{fontSize:9}}>Notas</label><input className="inp" value={ex.notes} onChange={e=>updEx(selDay,gi,ei,"notes",e.target.value)} placeholder="Obs..."/></div>
               </div>
             </div>);})}
@@ -880,7 +964,7 @@ export function RoutineEditor({routine,exercises,users,onSave,onBack,saving=fals
     </>}
     {rt.days.length===0&&<div className="card"><div className="empty"><div className="ico">📅</div><p>Selecciona los días por semana arriba</p></div></div>}
     <div style={{display:"flex",gap:8,marginTop:14,paddingTop:14,borderTop:"1px solid #DDE4F0"}}>
-      <SaveBtn className="btn btn-ok" onClick={()=>onSave(rt)} saving={saving}>💾 Guardar rutina</SaveBtn>
+      <SaveBtn className="btn btn-ok" onClick={saveRoutine} saving={saving}>💾 Guardar rutina</SaveBtn>
       <button className="btn btn-g" onClick={onBack}>Cancelar</button>
     </div>
     {exPicker&&<ExercisePicker exercises={exercises} onPick={ex=>addEx(exPicker.dayIdx,exPicker.gIdx,ex)} onClose={()=>setExPicker(null)}/>}
@@ -1101,7 +1185,7 @@ export function GroupTimer({restSeconds}){
 }
 
 // ── ROUTINE DISPLAY (reusable) ──
-export function RoutineDisplay({routine,exercises}){
+export function RoutineDisplay({routine,exercises,renderDayAction}){
   const[openDays,setOpenDays]=useState({});
   const[videoEx,setVideoEx]=useState(null);
   function toggleDay(id){setOpenDays(s=>({...s,[id]:!s[id]}))}
@@ -1116,7 +1200,10 @@ export function RoutineDisplay({routine,exercises}){
     {routine.days.map((day)=>(<div key={day.id} className="day-card">
       <div className="day-h" onClick={()=>toggleDay(day.id)}>
         <div><div className="day-ht">{day.label}</div><div style={{fontSize:10,color:"rgba(255,255,255,0.55)",marginTop:2}}>{day.groups.length} grupos · {day.groups.reduce((s,g)=>s+g.exercises.length,0)} ejercicios</div></div>
-        <span style={{color:"rgba(255,255,255,0.5)",fontSize:20}}>{openDays[day.id]?"▲":"▼"}</span>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          {renderDayAction&&<span onClick={e=>e.stopPropagation()}>{renderDayAction(day)}</span>}
+          <span style={{color:"rgba(255,255,255,0.5)",fontSize:20}}>{openDays[day.id]?"▲":"▼"}</span>
+        </div>
       </div>
       {openDays[day.id]&&(<div className="day-b">
         {day.groups.map((g)=>(<div key={g.id} className="grp-card">
@@ -1141,6 +1228,7 @@ export function RoutineDisplay({routine,exercises}){
                     <span className="ex-tag"><span className="tag-lbl">Reps</span>{ex.reps}</span>
                     {hasWeight&&<span className="ex-tag"><span className="tag-lbl">Peso</span>{ex.weightAmount} {ex.weightUnit}</span>}
                     {hasEquip&&<span className="ex-tag"><span className="tag-lbl">Equipo</span>{ex.equipment}</span>}
+                    {ex.equipment==="Mancuernas (par)"&&<span className="ex-tag" style={{background:"#F3E5F5",borderColor:"#E1BEE7",color:"#7B1FA2"}}>🖐 Una por mano</span>}
                     {hasSurface&&<span className="ex-tag" style={{background:"#FFF3E0",borderColor:"#FFE0B2",color:"#F57C00"}}><span className="tag-lbl" style={{color:"#FB8C00"}}>Superficie</span>{ex.surface}</span>}
                   </div>
                   {ex.notes&&<div className="ex-dt">📌 {ex.notes}</div>}
@@ -1160,10 +1248,189 @@ export function RoutineDisplay({routine,exercises}){
   </div>);
 }
 
+// ── WORKOUT: cronómetro transcurrido ──
+export function ElapsedTimer({startedAt}){
+  const[elapsed,setElapsed]=useState(0);
+  useEffect(()=>{
+    const start=new Date(startedAt).getTime();
+    const update=()=>setElapsed(Math.max(0,Math.floor((Date.now()-start)/1000)));
+    update();
+    const i=setInterval(update,1000);
+    return()=>clearInterval(i);
+  },[startedAt]);
+  const h=Math.floor(elapsed/3600),m=Math.floor((elapsed%3600)/60),s=elapsed%60;
+  const disp=h>0?`${h}:${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`:`${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;
+  return<span>{disp}</span>;
+}
+
+// ── WORKOUT: modal de finalizar (confirmar/editar pesos) ──
+export function FinishWorkoutModal({workout,onConfirm,onCancel,saving}){
+  // Unidad por ejercicio (lbs/kg). Se ingresa en la unidad elegida pero SIEMPRE se guarda en libras.
+  const[rows,setRows]=useState(()=>workout.exercises.map(e=>({
+    ...e,
+    unit:e.weightUnit||"lbs",
+    val:e.plannedWeight?String(e.plannedWeight):"",
+  })));
+  function setVal(i,v){setRows(rs=>rs.map((r,idx)=>idx===i?{...r,val:v}:r));}
+  function setUnit(i,next){setRows(rs=>rs.map((r,idx)=>idx===i?{...r,unit:next,val:r.val===""?"":String(convertWeight(r.val,r.unit,next))}:r));}
+  function save(){
+    const result=rows.map(r=>({
+      ...r,
+      actualWeight:r.val===""||r.val==null?"":String(convertWeight(r.val,r.unit,"lbs")),
+      weightUnit:"lbs",
+    }));
+    onConfirm(result);
+  }
+  return(<Modal title="Finalizar entrenamiento" onClose={onCancel}>
+    <div style={{fontSize:12,color:"#6B7A99",marginBottom:12}}>Confirmá los pesos que usaste. Elegí la unidad (lbs/kg) en cada ejercicio según la mancuerna que usaste.</div>
+    <div style={{maxHeight:"52vh",overflowY:"auto"}}>
+      {rows.map((r,i)=>{
+        const perHand=r.equipment==="Mancuernas (par)";
+        return(<div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"8px 0",borderBottom:"1px solid #DDE4F0"}}>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontSize:13,fontWeight:700,color:"#0B1F4B"}}>{r.name||"Ejercicio"}{perHand&&<span style={{fontSize:10,color:"#7B1FA2",fontWeight:700,marginLeft:6}}>🖐 c/mano</span>}</div>
+          <div style={{fontSize:11,color:"#6B7A99"}}>{r.series} series · {r.reps} reps{r.plannedWeight?` · coach: ${r.plannedWeight} ${r.weightUnit||"lbs"}`:""}</div>
+        </div>
+        <input className="inp" type="number" step="0.5" min={0} onKeyDown={preventNegKey} style={{width:72}} value={r.val} onChange={e=>setVal(i,stripNeg(e.target.value))} placeholder="—"/>
+        <select className="sel" style={{width:66,minWidth:66,padding:"6px 4px"}} value={r.unit} onChange={e=>setUnit(i,e.target.value)}>
+          <option value="lbs">lbs</option>
+          <option value="kg">kg</option>
+        </select>
+      </div>);
+      })}
+    </div>
+    <div style={{display:"flex",gap:8,marginTop:14}}>
+      <SaveBtn onClick={save} saving={saving}>✓ Guardar entrenamiento</SaveBtn>
+      <button className="btn btn-g" onClick={onCancel}>Cancelar</button>
+    </div>
+  </Modal>);
+}
+
+// ── WORKOUT: gráfica de frecuencia (días por semana/mes) ──
+export function WorkoutFrequencyChart({sessions}){
+  const[mode,setMode]=useState("week");
+  const buckets={};
+  sessions.forEach(s=>{
+    const key=mode==="week"?weekKey(s.startedAt):monthKey(s.startedAt);
+    const label=mode==="week"?weekLabel(s.startedAt):monthLabel(s.startedAt);
+    if(!buckets[key])buckets[key]={key,label,days:new Set()};
+    buckets[key].days.add(dayKey(s.startedAt));
+  });
+  const arr=Object.values(buckets).sort((a,b)=>a.key<b.key?-1:1);
+  const shown=arr.slice(-(mode==="week"?8:6));
+  const max=Math.max(1,...shown.map(b=>b.days.size));
+  const nowKey=mode==="week"?weekKey(new Date()):monthKey(new Date());
+  return(<div className="card" style={{marginBottom:12}}>
+    <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10,flexWrap:"wrap"}}>
+      <div style={{fontSize:11,fontWeight:700,color:"#6B7A99",textTransform:"uppercase",letterSpacing:1}}>Días entrenados por</div>
+      <div style={{display:"flex",gap:6,marginLeft:"auto"}}>
+        <button className={`chip${mode==="week"?" on":""}`} onClick={()=>setMode("week")}>Semana</button>
+        <button className={`chip${mode==="month"?" on":""}`} onClick={()=>setMode("month")}>Mes</button>
+      </div>
+    </div>
+    {shown.length>0?(<div className="chart-wrap"><div className="chart-inner">
+      {shown.map(b=>{
+        const h=Math.max(6,(b.days.size/max)*80+12);
+        const isNow=b.key===nowKey;
+        return(<div key={b.key} className="chart-col">
+          <div className="chart-val" style={{color:isNow?"#E53935":"#1A5DC8"}}>{b.days.size}</div>
+          <div className="chart-bar-f" style={{height:h,background:isNow?"#E53935":"#1A5DC8"}}/>
+          <div className="chart-lbl">{b.label}</div>
+        </div>);
+      })}
+    </div></div>):<div style={{textAlign:"center",padding:12,color:"#6B7A99",fontSize:12}}>Aún no hay entrenamientos</div>}
+    <div style={{fontSize:10,color:"#6B7A99",textAlign:"center",marginTop:6}}>En rojo la {mode==="week"?"semana":"mes"} actual · comparalo con {mode==="week"?"semanas":"meses"} anteriores</div>
+  </div>);
+}
+
+// ── WORKOUT: evolución de peso por ejercicio ──
+export function ExerciseProgressChart({sessions}){
+  const asc=[...sessions].sort((a,b)=>new Date(a.startedAt)-new Date(b.startedAt));
+  const names=[...new Set(asc.flatMap(s=>s.logs.map(l=>l.name)).filter(Boolean))].sort();
+  const[ex,setEx]=useState("");
+  if(!names.length)return null;
+  const chosen=names.includes(ex)?ex:names[0];
+  const points=[];
+  asc.forEach(s=>{
+    const log=s.logs.find(l=>l.name===chosen&&l.actualWeight&&Number(l.actualWeight)>0);
+    if(log)points.push({date:s.startedAt,w:Number(log.actualWeight),unit:log.weightUnit});
+  });
+  const data=points.slice(-10);
+  const max=Math.max(1,...data.map(p=>p.w));
+  const min=data.length?Math.min(...data.map(p=>p.w)):0;
+  const range=max-min||1;
+  const delta=data.length>1?data[data.length-1].w-data[0].w:0;
+  return(<div className="card" style={{marginBottom:12}}>
+    <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10,flexWrap:"wrap"}}>
+      <div style={{fontSize:11,fontWeight:700,color:"#6B7A99",textTransform:"uppercase",letterSpacing:1}}>Progreso de peso</div>
+      <select className="sel" style={{width:"auto",minWidth:150,flex:1}} value={chosen} onChange={e=>setEx(e.target.value)}>
+        {names.map(n=><option key={n} value={n}>{n}</option>)}
+      </select>
+    </div>
+    {data.length>1?(<>
+      <div className="chart-wrap"><div className="chart-inner">
+        {data.map((p,i)=>{
+          const h=Math.max(6,((p.w-min)/range)*80+12);
+          return(<div key={i} className="chart-col">
+            <div className="chart-val" style={{color:"#2E7D32"}}>{p.w}</div>
+            <div className="chart-bar-f" style={{height:h,background:"#2E7D32"}}/>
+            <div className="chart-lbl">{fmtDate(p.date).slice(0,6)}</div>
+          </div>);
+        })}
+      </div></div>
+      <div style={{marginTop:8,fontSize:12,textAlign:"center",fontWeight:700,color:delta>0?"#2E7D32":delta<0?"#E53935":"#6B7A99"}}>
+        {delta>0?`▲ +${delta} ${data[0].unit} desde el inicio`:delta<0?`▼ ${delta} ${data[0].unit} desde el inicio`:"Sin cambio aún"}
+      </div>
+    </>):<div style={{textAlign:"center",padding:12,color:"#6B7A99",fontSize:12}}>Necesitás al menos 2 registros de “{chosen}” para ver la evolución</div>}
+  </div>);
+}
+
+// ── WORKOUT: historial completo (reutilizable cliente/entrenador) ──
+export function WorkoutHistory({sessions,onDeleteSession,readOnly=false}){
+  const[open,setOpen]=useState({});
+  if(!sessions.length)return(<div className="empty"><div className="ico">🏋️</div><p>Sin entrenamientos registrados aún.<br/>{readOnly?"El cliente aún no ha completado entrenamientos.":"Iniciá y finalizá un entrenamiento desde tu rutina."}</p></div>);
+  const desc=[...sessions].sort((a,b)=>new Date(b.startedAt)-new Date(a.startedAt));
+  const nowW=weekKey(new Date()),nowM=monthKey(new Date());
+  const daysThisWeek=new Set(sessions.filter(s=>weekKey(s.startedAt)===nowW).map(s=>dayKey(s.startedAt))).size;
+  const daysThisMonth=new Set(sessions.filter(s=>monthKey(s.startedAt)===nowM).map(s=>dayKey(s.startedAt))).size;
+  return(<div>
+    <div className="m-grid" style={{marginBottom:12}}>
+      <div className="m-card"><div className="m-lbl">Total entrenos</div><div className="m-val">{sessions.length}</div></div>
+      <div className="m-card"><div className="m-lbl">Esta semana</div><div className="m-val">{daysThisWeek}<span className="m-unit"> días</span></div></div>
+      <div className="m-card"><div className="m-lbl">Este mes</div><div className="m-val">{daysThisMonth}<span className="m-unit"> días</span></div></div>
+    </div>
+    <WorkoutFrequencyChart sessions={sessions}/>
+    <ExerciseProgressChart sessions={sessions}/>
+    <div style={{fontWeight:700,fontSize:13,margin:"10px 0"}}>Historial ({sessions.length})</div>
+    {desc.map(s=>(<div key={s.id} style={{border:"1px solid #DDE4F0",borderRadius:10,marginBottom:8,overflow:"hidden"}}>
+      <div onClick={()=>setOpen(o=>({...o,[s.id]:!o[s.id]}))} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",cursor:"pointer",background:"#F8F9FF"}}>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontSize:13,fontWeight:700,color:"#0B1F4B"}}>{s.dayLabel||"Entrenamiento"}</div>
+          <div style={{fontSize:11,color:"#6B7A99"}}>{fmtDate(s.startedAt)} · ⏱ {fmtDuration(s.startedAt,s.finishedAt)} · {s.logs.length} ejercicios</div>
+        </div>
+        <span style={{color:"#6B7A99",fontSize:16}}>{open[s.id]?"▲":"▼"}</span>
+      </div>
+      {open[s.id]&&(<div style={{padding:"6px 12px 10px"}}>
+        {s.logs.map((l,i)=>(<div key={i} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0",borderBottom:"1px solid #EEF1F7",fontSize:12}}>
+          <span style={{flex:1,minWidth:0,color:"#0B1F4B"}}>{l.name}</span>
+          <span style={{color:"#6B7A99"}}>{l.series}×{l.reps}</span>
+          <span style={{fontWeight:700,color:"#2E7D32",minWidth:64,textAlign:"right"}}>{l.actualWeight?`${l.actualWeight} ${l.weightUnit}`:"—"}</span>
+        </div>))}
+        {!readOnly&&onDeleteSession&&<div style={{textAlign:"right",marginTop:8}}><button className="btn btn-d btn-sm" onClick={()=>onDeleteSession(s.id)}>🗑 Eliminar</button></div>}
+      </div>)}
+    </div>))}
+  </div>);
+}
+
 // ── USER ROUTINE PAGE ──
-export function MyRoutinePage({user,routines,exercises}){
+export function MyRoutinePage({user,routines,exercises,workoutSessions=[],setWorkoutSessions}){
   const[showPrev,setShowPrev]=useState(false);
   const[openPrev,setOpenPrev]=useState({});
+  const[activeWorkout,setActiveWorkout]=useLS("jh_active_workout_"+user.id,null);
+  const[showFinish,setShowFinish]=useState(false);
+  const[cancelConfirm,setCancelConfirm]=useState(false);
+  const[toast,setToast]=useState(null);
+  const[saving,wrap]=useSaving();
 
   // Sort: active first, then by createdAt desc
   const userRoutines=routines
@@ -1178,9 +1445,33 @@ export function MyRoutinePage({user,routines,exercises}){
   const activeRoutine=userRoutines[0]||null;
   const prevRoutines=userRoutines.slice(1);
 
+  function startWorkout(day){
+    const exs=[];
+    day.groups.forEach(g=>g.exercises.forEach(ex=>{
+      const info=exercises.find(e=>e.id===ex.exId);
+      exs.push({exId:ex.exId,name:info?.name||"Ejercicio",series:String(ex.series||""),reps:String(ex.reps||""),plannedWeight:ex.weightAmount?String(ex.weightAmount):"",weightUnit:ex.weightUnit||"lbs",equipment:ex.equipment||"Ninguno"});
+    }));
+    setActiveWorkout({sessionId:genId(),routineId:activeRoutine.id,dayId:day.id,dayLabel:day.label,startedAt:new Date().toISOString(),exercises:exs});
+  }
+  async function finishWorkout(rows){
+    const now=new Date().toISOString();
+    const session={id:activeWorkout.sessionId,userId:user.id,routineId:activeWorkout.routineId,dayId:activeWorkout.dayId,dayLabel:activeWorkout.dayLabel,startedAt:activeWorkout.startedAt,finishedAt:now,status:"completed",createdAt:now,logs:rows.map(r=>({exId:r.exId,name:r.name,series:r.series,reps:r.reps,plannedWeight:r.plannedWeight,actualWeight:r.actualWeight,weightUnit:r.weightUnit}))};
+    try{
+      await setWorkoutSessions([session,...workoutSessions]);
+      setActiveWorkout(null);setShowFinish(false);
+      setToast({msg:"¡Entrenamiento guardado! 💪",type:"ok"});
+    }catch(e){console.error(e);setToast({msg:"No se pudo guardar. Revisá tu conexión e intentá de nuevo.",type:"err"});}
+  }
+  function dayAction(day){
+    if(activeWorkout&&activeWorkout.dayId===day.id)return<span className="badge bd-green">● En curso</span>;
+    if(activeWorkout)return null;
+    return<button className="btn btn-ok btn-sm" onClick={()=>startWorkout(day)}>▶ Iniciar</button>;
+  }
+
   if(!activeRoutine)return(<div><div className="ph"><div className="pt">Mi Rutina</div></div><div className="card"><div className="empty"><div className="ico">📋</div><p>Tu entrenador aún no te ha asignado una rutina.<br/>¡Pronto llegará tu plan!</p></div></div></div>);
 
   return(<div>
+    {toast&&<Toast msg={toast.msg} type={toast.type} onDone={()=>setToast(null)}/>}
     <div className="ph">
       <div style={{display:"flex",alignItems:"center",gap:10}}>
         <Logo size={36}/>
@@ -1191,7 +1482,32 @@ export function MyRoutinePage({user,routines,exercises}){
       </div>
     </div>
 
-    <RoutineDisplay routine={activeRoutine} exercises={exercises}/>
+    {activeWorkout&&(<div style={{position:"sticky",top:8,zIndex:50,background:"#0B1F4B",color:"#fff",borderRadius:12,padding:"12px 16px",marginBottom:12,display:"flex",alignItems:"center",gap:12,boxShadow:"0 6px 18px rgba(11,31,75,0.35)"}}>
+      <div style={{width:10,height:10,borderRadius:"50%",background:"#4ADE80",flexShrink:0}}/>
+      <div style={{flex:1,minWidth:0}}>
+        <div style={{fontSize:10,color:"rgba(255,255,255,0.6)",textTransform:"uppercase",letterSpacing:1}}>Entrenando · {activeWorkout.dayLabel}</div>
+        <div style={{fontSize:22,fontWeight:900,fontFamily:"'Barlow Condensed',sans-serif",lineHeight:1.1}}><ElapsedTimer startedAt={activeWorkout.startedAt}/></div>
+      </div>
+      <button className="btn btn-sm" style={{background:"#2E7D32",color:"#fff",minHeight:38}} onClick={()=>setShowFinish(true)}>✓ Finalizar</button>
+      <button className="btn btn-sm" style={{background:"rgba(255,255,255,0.15)",color:"#fff",minHeight:38}} onClick={()=>setCancelConfirm(true)}>✕</button>
+    </div>)}
+
+    {!activeWorkout&&<div style={{fontSize:12,color:"#6B7A99",marginBottom:10}}>Tocá <strong style={{color:"#2E7D32"}}>▶ Iniciar</strong> en el día que vas a entrenar para registrarlo.</div>}
+
+    <RoutineDisplay routine={activeRoutine} exercises={exercises} renderDayAction={setWorkoutSessions?dayAction:undefined}/>
+
+    {showFinish&&activeWorkout&&<FinishWorkoutModal workout={activeWorkout} saving={saving} onCancel={()=>setShowFinish(false)} onConfirm={rows=>wrap(()=>finishWorkout(rows))}/>}
+    {cancelConfirm&&<Modal title="Cancelar entrenamiento" onClose={()=>setCancelConfirm(false)}>
+      <div style={{textAlign:"center",padding:"8px 0 16px"}}>
+        <div style={{fontSize:40,marginBottom:12}}>🗑️</div>
+        <div style={{fontSize:15,fontWeight:700,color:"#0B1F4B",marginBottom:8}}>¿Descartar este entrenamiento?</div>
+        <div style={{fontSize:13,color:"#6B7A99"}}>No se guardará en tu historial.</div>
+      </div>
+      <div style={{display:"flex",gap:8,justifyContent:"center"}}>
+        <button className="btn btn-d" onClick={()=>{setActiveWorkout(null);setCancelConfirm(false);}}>Sí, descartar</button>
+        <button className="btn btn-g" onClick={()=>setCancelConfirm(false)}>Seguir entrenando</button>
+      </div>
+    </Modal>}
 
     {prevRoutines.length>0&&(<div style={{marginTop:16}}>
       <button onClick={()=>setShowPrev(s=>!s)} style={{display:"flex",alignItems:"center",gap:8,background:"none",border:"none",cursor:"pointer",color:"#1A5DC8",fontSize:13,fontWeight:700,padding:"10px 0",fontFamily:"'Barlow',sans-serif"}}>
@@ -1217,7 +1533,7 @@ export function MyRoutinePage({user,routines,exercises}){
 }
 
 // ── USER PROFILE ──
-export function MyProfilePage({user,setUsers,users,measurements}){
+export function MyProfilePage({user,setUsers,users,measurements,workoutSessions=[],setWorkoutSessions}){
   const[tab,setTab]=useState("info");
   const[editing,setEditing]=useState(false);
   const[form,setForm]=useState({...user});
@@ -1281,7 +1597,7 @@ export function MyProfilePage({user,setUsers,users,measurements}){
     </div>
 
     <div className="tabs">
-      {[["info","👤 Info"],["measurements","📊 Mediciones"],["history","📈 Historial"]].map(([id,lbl])=>(<div key={id} className={`tab${tab===id?" active":""}`} onClick={()=>setTab(id)}>{lbl}</div>))}
+      {[["info","👤 Info"],["workouts","🏋️ Entrenos"],["measurements","📊 Mediciones"],["history","📈 Historial"]].map(([id,lbl])=>(<div key={id} className={`tab${tab===id?" active":""}`} onClick={()=>setTab(id)}>{lbl}</div>))}
     </div>
 
     {tab==="info"&&(<div>
@@ -1305,7 +1621,7 @@ export function MyProfilePage({user,setUsers,users,measurements}){
           <div className="fg"><label>Teléfono</label><input className="inp" value={form.phone||""} onChange={e=>setForm({...form,phone:e.target.value})}/></div>
           <div className="fg"><label>Cédula</label><input className="inp" value={form.cedula||""} onChange={e=>setForm({...form,cedula:e.target.value})}/></div>
           <div className="fg"><label>Fecha de nacimiento</label><input className="inp" type="date" value={form.dob||""} onChange={e=>setForm({...form,dob:e.target.value})}/></div>
-          <div className="fg"><label>Estatura (cm)</label><input className="inp" type="number" value={form.height||""} onChange={e=>setForm({...form,height:e.target.value})}/></div>
+          <div className="fg"><label>Estatura (cm)</label><input className="inp" type="number" min={0} onKeyDown={preventNegKey} value={form.height||""} onChange={e=>setForm({...form,height:stripNeg(e.target.value)})}/></div>
         </div>
         <div style={{borderTop:"1px solid #DDE4F0",paddingTop:12,marginTop:4}}>
           {!showChangePwd&&<button type="button" className="btn btn-w btn-sm" onClick={()=>{setShowChangePwd(true);setPwdForm({nueva:"",confirmar:""});setPwdErr("");}}>🔐 Cambiar contraseña</button>}
@@ -1319,6 +1635,14 @@ export function MyProfilePage({user,setUsers,users,measurements}){
         </div>
         <div style={{display:"flex",gap:8,marginTop:12}}><SaveBtn onClick={()=>wrap(saveProfile)} saving={saving}>Guardar datos</SaveBtn><button className="btn btn-g" onClick={()=>setEditing(false)}>Cancelar</button></div>
       </Modal>}
+    </div>)}
+
+    {tab==="workouts"&&(<div>
+      <WorkoutHistory sessions={workoutSessions.filter(s=>s.userId===user.id)} onDeleteSession={async id=>{
+        if(!confirm("¿Eliminar este entrenamiento del historial?"))return;
+        try{await setWorkoutSessions(workoutSessions.filter(s=>s.id!==id));setToast({msg:"Entrenamiento eliminado",type:"ok"});}
+        catch(e){console.error(e);setToast({msg:ERR,type:"err"});}
+      }}/>
     </div>)}
 
     {tab==="measurements"&&(<div>

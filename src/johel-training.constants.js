@@ -8,8 +8,8 @@ export const PAYMENT_PERIODS = [
   {label:"4 meses (cuatrimestre)",months:4},{label:"6 meses (semestre)",months:6},
   {label:"12 meses (anual)",months:12},
 ];
-export const EQUIPMENT_TYPES = ["Ninguno","Mancuerna","Kettlebell","Disco","Liga/Banda","Barra","Otro"];
-export const SURFACE_TYPES = ["Ninguno","Banco","Piso","Grada","Cajón","Pared","Polea"];
+export const EQUIPMENT_TYPES = ["Ninguno","Mancuerna","Mancuernas (par)","Kettlebell","Disco","Liga/Banda","Barra","Barra larga","Polea cerrada","Otro"];
+export const SURFACE_TYPES = ["Ninguno","Banco","Piso","Grada","Cajón","Pared","Máquina multiusos"];
 export const MUSCLE_GROUPS_FILTER = ["Todos","Glúteos","Piernas","Espalda","Pecho","Hombros","Bíceps","Tríceps","Abdomen","Core","Full Body","Brazos"];
 export const MEASUREMENT_FIELDS = [
   {key:"weight",label:"Peso",unit:"kg"},{key:"fat",label:"Grasa corporal",unit:"%"},

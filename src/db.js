@@ -413,3 +413,131 @@ export async function deletePayment(id) {
   const { error } = await sb.from("payments").delete().eq("id", id);
   if (error) throw error;
 }
+
+// ═══════════════════════════════════════════
+// WORKOUT SESSIONS (entrenamientos + pesos usados)
+// ═══════════════════════════════════════════
+
+function dbToSession(s, logs) {
+  return {
+    id: s.id,
+    userId: s.user_id,
+    routineId: s.routine_id || "",
+    dayId: s.day_id || "",
+    dayLabel: s.day_label || "",
+    startedAt: s.started_at,
+    finishedAt: s.finished_at || null,
+    status: s.status || "completed",
+    createdAt: s.created_at,
+    logs: (logs || [])
+      .filter((l) => l.session_id === s.id)
+      .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
+      .map((l) => ({
+        exId: l.exercise_id || "",
+        name: l.exercise_name || "",
+        series: l.series || "",
+        reps: l.reps || "",
+        plannedWeight: l.planned_weight || "",
+        actualWeight: l.actual_weight || "",
+        weightUnit: l.weight_unit || "lbs",
+      })),
+  };
+}
+
+export async function getWorkoutSessions() {
+  const { data: sessions, error: sErr } = await sb
+    .from("workout_sessions")
+    .select("*")
+    .order("started_at", { ascending: false });
+  if (sErr) throw sErr;
+  if (!sessions.length) return [];
+
+  const ids = sessions.map((s) => s.id);
+  const { data: logs, error: lErr } = await sb
+    .from("workout_logs")
+    .select("*")
+    .in("session_id", ids)
+    .order("sort_order");
+  if (lErr) throw lErr;
+
+  return sessions.map((s) => dbToSession(s, logs || []));
+}
+
+export async function upsertWorkoutSession(session) {
+  // 1. Guardar la sesión principal
+  const { error: sErr } = await sb.from("workout_sessions").upsert(
+    {
+      id: session.id,
+      user_id: session.userId,
+      routine_id: session.routineId || null,
+      day_id: session.dayId || null,
+      day_label: session.dayLabel || null,
+      started_at: session.startedAt,
+      finished_at: session.finishedAt || null,
+      status: session.status || "completed",
+      created_at: session.createdAt || new Date().toISOString(),
+    },
+    { onConflict: "id" }
+  );
+  if (sErr) throw sErr;
+
+  // 2. Reemplazar logs (borrar anteriores e insertar los nuevos)
+  await sb.from("workout_logs").delete().eq("session_id", session.id);
+
+  const logs = session.logs || [];
+  if (logs.length) {
+    const rows = logs.map((l, i) => ({
+      id: "wlog_" + Math.random().toString(36).slice(2, 10),
+      session_id: session.id,
+      exercise_id: l.exId || null,
+      exercise_name: l.name || null,
+      series: l.series || null,
+      reps: l.reps || null,
+      planned_weight: l.plannedWeight || null,
+      actual_weight: l.actualWeight || null,
+      weight_unit: l.weightUnit || "lbs",
+      sort_order: i,
+    }));
+    const { error: lErr } = await sb.from("workout_logs").insert(rows);
+    if (lErr) throw lErr;
+  }
+}
+
+export async function deleteWorkoutSession(id) {
+  const { error } = await sb.from("workout_sessions").delete().eq("id", id);
+  if (error) throw error;
+}
+
+// ═══════════════════════════════════════════
+// CATALOGS (listas editables)
+// ═══════════════════════════════════════════
+
+// Devuelve un objeto { category: [labels...] } con las categorías que
+// existen en la BD. Las que no existan usan los valores por defecto del código.
+export async function getCatalogs() {
+  const { data, error } = await sb
+    .from("catalogs")
+    .select("*")
+    .order("sort_order");
+  if (error) throw error;
+  const out = {};
+  (data || []).forEach((r) => {
+    (out[r.category] = out[r.category] || []).push(r.label);
+  });
+  return out;
+}
+
+// Reemplaza toda una categoría por la lista dada
+export async function setCatalogCategory(category, labels) {
+  await sb.from("catalogs").delete().eq("category", category);
+  const rows = (labels || []).map((label, i) => ({
+    id: "cat_" + Math.random().toString(36).slice(2, 10),
+    category,
+    label,
+    sort_order: i,
+  }));
+  if (rows.length) {
+    const { error } = await sb.from("catalogs").insert(rows);
+    if (error) throw error;
+  }
+}

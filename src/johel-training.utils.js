@@ -77,3 +77,34 @@ export function addMonths(dateStr,months){
   d.setMonth(d.getMonth()+months);
   return d.toISOString().split("T")[0];
 }
+
+// ── Fechas para agrupar entrenamientos ──
+export function startOfWeek(d){
+  const dt=new Date(d);
+  dt.setHours(0,0,0,0);
+  const day=(dt.getDay()+6)%7; // lunes = 0
+  dt.setDate(dt.getDate()-day);
+  return dt;
+}
+export function weekKey(d){return startOfWeek(d).toISOString().slice(0,10);}
+export function weekLabel(d){return startOfWeek(d).toLocaleDateString("es-CR",{day:"2-digit",month:"short"});}
+export function monthKey(d){const dt=new Date(d);return`${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,"0")}`;}
+export function monthLabel(d){return new Date(d).toLocaleDateString("es-CR",{month:"short",year:"2-digit"});}
+export function dayKey(d){const dt=new Date(d);return`${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,"0")}-${String(dt.getDate()).padStart(2,"0")}`;}
+// ── Conversión de peso (guardamos siempre en libras para consistencia) ──
+const LBS_PER_KG=2.2046226218;
+export function convertWeight(val,from,to){
+  const n=Number(val);
+  if(val===""||val==null||isNaN(n))return val;
+  let lbs=from==="kg"?n*LBS_PER_KG:n;
+  let out=to==="kg"?lbs/LBS_PER_KG:lbs;
+  return Math.round(out*10)/10; // 1 decimal
+}
+export function fmtDuration(startIso,endIso){
+  if(!startIso||!endIso)return"—";
+  const ms=new Date(endIso)-new Date(startIso);
+  if(ms<0||isNaN(ms))return"—";
+  const totalMin=Math.round(ms/60000);
+  const h=Math.floor(totalMin/60),m=totalMin%60;
+  return h>0?`${h}h ${m}min`:`${m} min`;
+}
