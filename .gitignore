@@ -12,6 +12,17 @@ dist
 dist-ssr
 *.local
 
+# Variables de entorno (nunca commitear secretos). Se conserva .env.example
+.env
+.env.*
+!.env.example
+
+# Temporales generados por Vite al leer vite.config.js
+vite.config.js.timestamp-*
+
+# Cache local del CLI de Supabase
+supabase/.temp/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

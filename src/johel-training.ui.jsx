@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
 import { LOGO_IMG, TRAINER_PHOTO } from "./johel-training.assets";
 import { getEmbed, initials, verifyPassword } from "./johel-training.utils";
+import { useBranding } from "./branding/BrandingContext";
 
-export function Logo({size=52}){return(<img src={LOGO_IMG} alt="Johel Herrera" style={{width:size,height:size,objectFit:"contain",borderRadius:8}}/>);}
+export function Logo({size=52}){const b=useBranding();return(<img src={b.logoUrl||LOGO_IMG} alt={b.displayName} style={{width:size,height:size,objectFit:"contain",borderRadius:8}}/>);}
 
 export function PasswordInput({value,onChange,placeholder="••••••••",autoComplete="current-password"}){
   const[show,setShow]=useState(false);
@@ -26,9 +27,11 @@ export function VideoModal({name,url,onClose}){
 
 // ── APP FOOTER ──
 export function AppFooter(){
+  const brand=useBranding();
+  const year=new Date().getFullYear();
   return(
     <div className="main-footer">
-      © 2026 Johel Herrera · Strength | Discipline | Evolution · Todos los derechos reservados<br/>
+      © {year} {brand.footerName||brand.displayName} · {brand.tagline} · Todos los derechos reservados<br/>
       · Desarrollado por <a href="https://wa.me/50688238325" target="_blank" rel="noreferrer" style={{color:"inherit",textDecoration:"underline",fontWeight:700}}>Luis Diego Venegas</a>
       <span style={{opacity:0.5,marginLeft:8}}>· v1.0.0</span>
     </div>
@@ -133,6 +136,7 @@ function InstallModal({onClose}){
 }
 
 export function LoginPage({onLogin,users}){
+  const brand=useBranding();
   const[u,setU]=useState("");const[p,setP]=useState("");const[err,setErr]=useState("");const[showSobre,setShowSobre]=useState(false);const[showInstall,setShowInstall]=useState(false);
   function go(e){
     e.preventDefault();
@@ -148,9 +152,9 @@ export function LoginPage({onLogin,users}){
     {showInstall&&<InstallModal onClose={()=>setShowInstall(false)}/>}
     <div className="login-box">
       <div className="login-logo">
-        <img src={LOGO_IMG} alt="Johel Herrera" style={{width:120,height:120,objectFit:"contain",display:"block",margin:"0 auto 10px"}}/>
-        <div className="login-brand">Johel Herrera</div>
-        <div className="login-sub">Strength · Discipline · Evolution</div>
+        {brand.logoUrl&&<img src={brand.logoUrl} alt={brand.displayName} style={{width:120,height:120,objectFit:"contain",display:"block",margin:"0 auto 10px"}}/>}
+        <div className="login-brand">{brand.displayName}</div>
+        <div className="login-sub">{brand.tagline}</div>
       </div>
       {err&&<div className="err">⚠ {err}</div>}
       <form onSubmit={go}>
@@ -171,6 +175,7 @@ export function LoginPage({onLogin,users}){
   </div>);
 }
 export function Sidebar({user,page,setPage,onLogout}){
+  const brand=useBranding();
   const isT=user.role==="trainer";
   const navs=isT?[
     {id:"dashboard",icon:"🏠",label:"Inicio"},
@@ -187,7 +192,7 @@ export function Sidebar({user,page,setPage,onLogout}){
   const photo=localStorage.getItem(photoKey);
   return(
     <aside className="sidebar">
-      <div className="sb-logo"><img src={LOGO_IMG} alt="Johel Herrera" style={{width:48,height:48,objectFit:"contain",borderRadius:6,background:"#fff",padding:2}}/><div className="sb-brand">Johel Herrera</div><div className="sb-sub">Str·Dis·Evo</div></div>
+      <div className="sb-logo"><img src={brand.logoUrl||LOGO_IMG} alt={brand.displayName} style={{width:48,height:48,objectFit:"contain",borderRadius:6,background:"#fff",padding:2}}/><div className="sb-brand">{brand.displayName}</div><div className="sb-sub">{brand.taglineShort}</div></div>
       <nav>
         {isT&&<div className="nav-sec">Menú</div>}
         {navs.map(n=>(<div key={n.id} className={`nav-item${page===n.id?" active":""}`} onClick={()=>setPage(n.id)}><span className="nav-icon">{n.icon}</span><span>{n.label}</span></div>))}

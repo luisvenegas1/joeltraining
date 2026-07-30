@@ -1,0 +1,16 @@
+-- ═══════════════════════════════════════════════════════════════
+--  ⚠️ ARCHIVO OBSOLETO — NO EJECUTAR. (Sin SQL: solo este comentario.)
+--
+--  El bootstrap de Johel se dividió en DOS pasos con pausa de revisión humana:
+--
+--    1) supabase/cutover/bootstrap_johel_preflight.sql   (SOLO LECTURA)
+--       → conteos y verificaciones previas. Revisá y aprobá.
+--
+--    2) supabase/cutover/bootstrap_johel_apply.sql        (MUTACIONES)
+--       → solo después de aprobar el preflight. Hace el bootstrap y la
+--         verificación de cero huérfanos DENTRO de la misma transacción,
+--         antes del COMMIT; si falla, revierte todo.
+--
+--  Este archivo quedó vacío a propósito (el entorno no permitió borrarlo).
+--  Podés eliminarlo del repo en tu máquina:  rm supabase/cutover/bootstrap_johel_legacy_data.sql
+-- ═══════════════════════════════════════════════════════════════

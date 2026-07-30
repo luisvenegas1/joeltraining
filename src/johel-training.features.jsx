@@ -5,6 +5,7 @@ import {
   PAYMENT_PERIODS,
 } from "./johel-training.constants";
 import { useCatalogs, CATALOG_META } from "./johel-training.catalogs";
+import { usePermissions } from "./auth/PermissionsContext";
 import { addMonths, calcAge, daysLeft, fmtDate, genId, getPlanStatus, getPlanStatusFromEndDate, initials, planColor, useLS, hashPassword, generatePassword, useSaving, weekKey, weekLabel, monthKey, monthLabel, dayKey, fmtDuration, convertWeight } from "./johel-training.utils";
 import { Modal, PasswordInput, Toast, VideoModal, ExercisePicker, StretchPicker, Logo, SaveBtn } from "./johel-training.ui";
 
@@ -160,7 +161,8 @@ export function AdminsPage(){
 }
 
 // ── PAYMENT MODULE ──
-export function PaymentModule({client,setClient}){
+// Fuente de verdad: tabla `payments` (prop allPayments + setPayments), NO client.payments.
+export function PaymentModule({client,setClient,payments:allPayments=[],setPayments}){
   const[showPay,setShowPay]=useState(false);
   const[editingPay,setEditingPay]=useState(null);
   const[period,setPeriod]=useState(1);
@@ -170,7 +172,8 @@ export function PaymentModule({client,setClient}){
   const[toast,setToast]=useState(null);
   const[saving,wrap]=useSaving();
   const ERR="Hubo un problema al guardar. Intentá de nuevo en unos minutos.";
-  const payments=client.payments||[];
+  // Pagos de este cliente (ordenados por fecha desc), derivados de la tabla real.
+  const payments=allPayments.filter(p=>p.clientId===client.id).sort((a,b)=>new Date(b.date)-new Date(a.date));
 
   function openNew(){
     setEditingPay(null);
@@ -190,41 +193,67 @@ export function PaymentModule({client,setClient}){
     setShowPay(true);
   }
 
+  // Recalcula el endDate del plan a partir del pago más reciente del cliente.
+  function planFromPayments(clientPays){
+    const sorted=[...clientPays].sort((a,b)=>new Date(b.date)-new Date(a.date));
+    return {...client.plan,endDate:sorted[0]?.endDate||""};
+  }
+
   async function savePayment(){
+    // Guardado en dos pasos con rollback: primero la tabla payments, luego el plan.
+    const prevClient=client;
+    let paid=false;
     try{
+      let clientPays;
       if(editingPay){
-        // Editar pago existente — recalcular endDate
-        const base=payDate;
-        const newEnd=addMonths(base,period);
-        const updated={...editingPay,date:payDate,months:period,amount,notes,endDate:newEnd};
-        const newPayments=payments.map(p=>p.id===editingPay.id?updated:p);
-        // Recalcular endDate del plan desde el pago más reciente
-        const sorted=[...newPayments].sort((a,b)=>new Date(b.date)-new Date(a.date));
-        const newPlan={...client.plan,endDate:sorted[0]?.endDate||client.plan?.endDate};
-        await setClient({...client,plan:newPlan,payments:newPayments});
-        setToast({msg:"Pago actualizado",type:"ok"});
+        const newEnd=addMonths(payDate,period);
+        const updated={...editingPay,clientId:client.id,date:payDate,months:period,amount,notes,endDate:newEnd};
+        const newAll=allPayments.map(p=>p.id===editingPay.id?updated:p);
+        clientPays=newAll.filter(p=>p.clientId===client.id);
+        await setPayments(newAll);           // persiste en tabla payments (con rollback interno)
+        paid=true;
       } else {
         const currentEnd=client.plan?.endDate;
         const base=(currentEnd&&getPlanStatusFromEndDate(currentEnd)==="Activo")?currentEnd:payDate;
         const newEnd=addMonths(base,period);
-        const pay={id:genId(),date:payDate,months:period,amount,notes,endDate:newEnd};
-        const newPlan={...client.plan,endDate:newEnd,startDate:client.plan?.startDate||payDate};
-        await setClient({...client,plan:newPlan,payments:[pay,...payments]});
-        setToast({msg:"Pago registrado correctamente",type:"ok"});
+        const pay={id:genId(),clientId:client.id,date:payDate,months:period,amount,notes,endDate:newEnd};
+        const newAll=[pay,...allPayments];
+        clientPays=newAll.filter(p=>p.clientId===client.id);
+        await setPayments(newAll);
+        paid=true;
       }
+      // Actualizar el plan (endDate) del cliente en base a sus pagos.
+      const newPlan=editingPay
+        ?planFromPayments(clientPays)
+        :{...client.plan,endDate:clientPays.sort((a,b)=>new Date(b.date)-new Date(a.date))[0]?.endDate,startDate:client.plan?.startDate||payDate};
+      await setClient({...client,plan:newPlan});
       setShowPay(false);setNotes("");setEditingPay(null);
-    }catch(e){console.error(e);setToast({msg:ERR,type:"err"});}
+      setToast({msg:editingPay?"Pago actualizado":"Pago registrado correctamente",type:"ok"});
+    }catch(e){
+      console.error(e);
+      // Rollback visual: setPayments ya revierte su estado; si el pago entró pero
+      // falló el plan, revertir el cliente para no mostrar datos no guardados.
+      if(paid){try{await setClient(prevClient);}catch{/* ignore */}}
+      setToast({msg:ERR,type:"err"});
+    }
   }
 
   async function delPayment(id){
     if(!confirm("¿Eliminar este pago?"))return;
+    const prevClient=client;
+    let removed=false;
     try{
-      const newPayments=payments.filter(p=>p.id!==id);
-      const sorted=[...newPayments].sort((a,b)=>new Date(b.date)-new Date(a.date));
-      const newPlan={...client.plan,endDate:sorted[0]?.endDate||""};
-      await setClient({...client,plan:newPlan,payments:newPayments});
+      const newAll=allPayments.filter(p=>p.id!==id);
+      const clientPays=newAll.filter(p=>p.clientId===client.id);
+      await setPayments(newAll);
+      removed=true;
+      await setClient({...client,plan:planFromPayments(clientPays)});
       setToast({msg:"Pago eliminado",type:"ok"});
-    }catch(e){console.error(e);setToast({msg:ERR,type:"err"});}
+    }catch(e){
+      console.error(e);
+      if(removed){try{await setClient(prevClient);}catch{/* ignore */}}
+      setToast({msg:ERR,type:"err"});
+    }
   }
 
   const st=getPlanStatus(client.plan);
@@ -534,7 +563,7 @@ function EditClientModal({cForm,setCForm,onSave,onClose,saving=false}){
 }
 
 // ── CLIENT DETAIL ──
-export function ClientDetail({client,setClient,measurements,setMeasurements,workoutSessions=[],setWorkoutSessions,routines,onBack,onDelete,deleteConfirm,setDeleteConfirm,doDelete}){
+export function ClientDetail({client,setClient,measurements,setMeasurements,payments=[],setPayments,workoutSessions=[],setWorkoutSessions,routines,onBack,onDelete,deleteConfirm,setDeleteConfirm,doDelete}){
   const[tab,setTab]=useState("info");
   const[showEditInfo,setShowEditInfo]=useState(false);
   const[cForm,setCForm]=useState({...client});
@@ -639,7 +668,7 @@ export function ClientDetail({client,setClient,measurements,setMeasurements,work
     </div>)}
 
     {tab==="plan"&&<PlanEditor client={client} onSave={savePlan}/>}
-    {tab==="payments"&&<div className="card"><PaymentModule client={client} setClient={setClient}/></div>}
+    {tab==="payments"&&<div className="card"><PaymentModule client={client} setClient={setClient} payments={payments} setPayments={setPayments}/></div>}
     {tab==="workouts"&&<WorkoutHistory sessions={workoutSessions.filter(s=>s.userId===client.id)} onDeleteSession={setWorkoutSessions?async id=>{
       if(!confirm("¿Eliminar este entrenamiento del historial?"))return;
       try{await setWorkoutSessions(workoutSessions.filter(s=>s.id!==id));setToast({msg:"Entrenamiento eliminado",type:"ok"});}
@@ -653,8 +682,9 @@ export function ClientDetail({client,setClient,measurements,setMeasurements,work
 }
 
 // ── CLIENTS LIST ──
-export function ClientsPage({users,setUsers,routines,measurements,setMeasurements,workoutSessions=[],setWorkoutSessions,selectedClientId}){
+export function ClientsPage({users,setUsers,routines,measurements,setMeasurements,payments=[],setPayments,workoutSessions=[],setWorkoutSessions,selectedClientId}){
   const cat=useCatalogs();
+  const{readOnly}=usePermissions();
   const[detail,setDetail]=useState(()=>selectedClientId?users.find(u=>u.id===selectedClientId)||null:null);
   const[showAdd,setShowAdd]=useState(false);
   const[form,setForm]=useState({name:"",username:"",password:"",phone:"",email:"",cedula:"",dob:"",height:"",notes:"",plan:{type:"Base",modality:"En Estudio",format:"Individual",startDate:"",endDate:"",price:""}});
@@ -709,6 +739,8 @@ export function ClientsPage({users,setUsers,routines,measurements,setMeasurement
       setClient={c=>updateClient({...live,...c})}
       measurements={measurements}
       setMeasurements={setMeasurements}
+      payments={payments}
+      setPayments={setPayments}
       workoutSessions={workoutSessions}
       setWorkoutSessions={setWorkoutSessions}
       routines={routines}
@@ -721,7 +753,7 @@ export function ClientsPage({users,setUsers,routines,measurements,setMeasurement
   }
   return(<div>
     {toast&&<Toast msg={toast.msg} type={toast.type} onDone={()=>setToast(null)}/>}
-    <div className="ph"><div><div className="pt">Clientes</div><div className="ps">{users.length} clientes</div></div><button className="btn btn-p" onClick={()=>setShowAdd(true)}>+ Nuevo</button></div>
+    <div className="ph"><div><div className="pt">Clientes</div><div className="ps">{users.length} clientes</div></div>{!readOnly&&<button className="btn btn-p" onClick={()=>setShowAdd(true)}>+ Nuevo</button>}</div>
     <input className="inp" placeholder="🔍 Buscar por nombre o usuario..." value={search} onChange={e=>setSearch(e.target.value)} style={{marginBottom:10}}/>
     <div className="card" style={{padding:0}}>
       <div className="tbl-wrap"><table className="tbl">
@@ -797,6 +829,7 @@ export function ClientsPage({users,setUsers,routines,measurements,setMeasurement
 // ── EXERCISES ──
 export function ExercisesPage({exercises,setExercises}){
   const cat=useCatalogs();
+  const{readOnly}=usePermissions();
   const[tab,setTab]=useState("normal");const[filter,setFilter]=useState("Todos");const[search,setSearch]=useState("");const[showAdd,setShowAdd]=useState(false);const[editing,setEditing]=useState(null);const[videoEx,setVideoEx]=useState(null);const[form,setForm]=useState({name:"",videoUrl:"",muscleGroup:"Piernas",type:"normal",equipment:"Ninguno"});
   const[toast,setToast]=useState(null);
   const[saving,wrap]=useSaving();
@@ -823,7 +856,7 @@ export function ExercisesPage({exercises,setExercises}){
   const groups=["Todos",...new Set(exercises.filter(e=>e.type===tab).map(e=>e.muscleGroup))].filter((v,i,a)=>a.indexOf(v)===i);
   return(<div>
     {toast&&<Toast msg={toast.msg} type={toast.type} onDone={()=>setToast(null)}/>}
-    <div className="ph"><div><div className="pt">Ejercicios</div><div className="ps">{exercises.length} ejercicios</div></div><button className="btn btn-p" onClick={openAdd}>+ Agregar</button></div>
+    <div className="ph"><div><div className="pt">Ejercicios</div><div className="ps">{exercises.length} ejercicios</div></div>{!readOnly&&<button className="btn btn-p" onClick={openAdd}>+ Agregar</button>}</div>
     <div className="tabs">{["normal","stretching"].map(t=>(<div key={t} className={`tab${tab===t?" active":""}`} onClick={()=>{setTab(t);setFilter("Todos")}}>{t==="normal"?"🏋️ Ejercicios":"🧘 Estiramientos"}</div>))}</div>
     <input className="inp" placeholder="🔍 Buscar..." value={search} onChange={e=>setSearch(e.target.value)} style={{marginBottom:8}}/>
     <div className="chips">{groups.map(g=><button key={g} className={`chip${filter===g?" on":""}`} onClick={()=>setFilter(g)}>{g}</button>)}</div>
@@ -832,7 +865,7 @@ export function ExercisesPage({exercises,setExercises}){
       <tbody>{list.map(ex=>(<tr key={ex.id}>
         <td><strong>{ex.name}</strong></td><td><span className="badge bd-blue">{ex.muscleGroup}</span></td><td><span className="badge bd-gray">{ex.equipment||"Ninguno"}</span></td>
         <td>{ex.videoUrl?<button className="vbtn" onClick={()=>setVideoEx(ex)}>▶</button>:<span style={{color:"#6B7A99",fontSize:10}}>—</span>}</td>
-        <td style={{whiteSpace:"nowrap"}}><button className="ibtn" onClick={()=>openEdit(ex)}>✏️</button><button className="ibtn d" onClick={()=>del(ex.id)}>🗑</button></td>
+        <td style={{whiteSpace:"nowrap"}}><button className="ibtn" onClick={()=>openEdit(ex)}>✏️</button>{!readOnly&&<button className="ibtn d" onClick={()=>del(ex.id)}>🗑</button>}</td>
       </tr>))}{list.length===0&&<tr><td colSpan={5}><div className="empty"><div className="ico">🏋️</div><p>Sin ejercicios</p></div></td></tr>}</tbody></table></div>
     </div>
     {showAdd&&<Modal title={editing?"Editar ejercicio":"Nuevo ejercicio"} onClose={()=>setShowAdd(false)}>
@@ -974,6 +1007,7 @@ export function RoutineEditor({routine,exercises,users,onSave,onBack,saving=fals
 
 // ── ROUTINES LIST ──
 export function RoutinesPage({routines,setRoutines,users,setUsers,exercises}){
+  const{readOnly}=usePermissions();
   const[editing,setEditing]=useState(null);
   const[filterUser,setFilterUser]=useState("__all__");
   const[toast,setToast]=useState(null);
@@ -1025,7 +1059,7 @@ export function RoutinesPage({routines,setRoutines,users,setUsers,exercises}){
   if(editing!==null)return<RoutineEditor routine={editing==="__new__"?null:editing} exercises={exercises} users={users} onSave={rt=>wrap(()=>saveRoutine(rt))} saving={saving} onBack={()=>setEditing(null)}/>;
   return(<div>
     {toast&&<Toast msg={toast.msg} type={toast.type} onDone={()=>setToast(null)}/>}
-    <div className="ph"><div><div className="pt">Rutinas</div><div className="ps">{filtered.length} rutina{filtered.length!==1?"s":""}</div></div><button className="btn btn-p" onClick={()=>setEditing("__new__")}>+ Nueva</button></div>
+    <div className="ph"><div><div className="pt">Rutinas</div><div className="ps">{filtered.length} rutina{filtered.length!==1?"s":""}</div></div>{!readOnly&&<button className="btn btn-p" onClick={()=>setEditing("__new__")}>+ Nueva</button>}</div>
     <div style={{marginBottom:12,display:"flex",alignItems:"center",gap:10}}>
       <select value={filterUser} onChange={e=>setFilterUser(e.target.value)} style={{fontFamily:"'Barlow',sans-serif",fontSize:13,padding:"8px 12px",borderRadius:8,border:"1px solid #DDE4F0",background:"#fff",color:"#0B1F4B",flex:1,maxWidth:280}}>
         <option value="__all__">Todos los clientes</option>
