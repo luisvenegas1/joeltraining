@@ -913,13 +913,34 @@ function propagateExerciseData(rt){
 
 export function RoutineEditor({routine,exercises,users,onSave,onBack,saving=false}){
   const cat=useCatalogs();
-  const blank={id:genId(),userId:"",title:"Nueva Rutina",daysPerWeek:0,note:"",days:[],warmupStretchIds:[],cooldownStretchIds:[]};
-  const[rt,setRt]=useState(()=>routine?JSON.parse(JSON.stringify(routine)):blank);
+  const blank={id:genId(),userId:"",title:"Nueva Rutina",daysPerWeek:0,note:"",days:[],warmupStretchIds:[],cooldownStretchIds:[],assignedUserIds:[]};
+  const[rt,setRt]=useState(()=>{
+    if(!routine)return blank;
+    const copy=JSON.parse(JSON.stringify(routine));
+    if(!Array.isArray(copy.assignedUserIds))copy.assignedUserIds=copy.userId?[copy.userId]:[];
+    return copy;
+  });
+  // Clientes para los que ESTA rutina está activa (users.activeRoutineId === rt.id).
+  // Para una rutina nueva (routine null) el set arranca vacío.
+  const[activeIds,setActiveIds]=useState(()=>new Set(routine?users.filter(u=>u.activeRoutineId===routine.id).map(u=>u.id):[]));
   const[selDay,setSelDay]=useState(0);const[exPicker,setExPicker]=useState(null);const[strPicker,setStrPicker]=useState(null);
+  const assignedSet=new Set(rt.assignedUserIds||[]);
+  const clientsList=users.filter(u=>!u.disabled);
+
+  function toggleAssign(uid){
+    const wasAssigned=(rt.assignedUserIds||[]).includes(uid);
+    setRt(r=>{const s=new Set(r.assignedUserIds||[]);if(s.has(uid))s.delete(uid);else s.add(uid);return{...r,assignedUserIds:[...s]};});
+    if(wasAssigned)setActiveIds(prev=>{const n=new Set(prev);n.delete(uid);return n;}); // al desasignar, quitar activa
+  }
+  function toggleActive(uid){
+    const wasActive=activeIds.has(uid);
+    setActiveIds(prev=>{const n=new Set(prev);if(n.has(uid))n.delete(uid);else n.add(uid);return n;});
+    if(!wasActive)setRt(r=>{const s=new Set(r.assignedUserIds||[]);s.add(uid);return{...r,assignedUserIds:[...s]};}); // activa implica asignada
+  }
   function saveRoutine(){
     const next=propagateExerciseData(rt);
     setRt(next);
-    onSave(next);
+    onSave(next,[...activeIds]);
   }
 
   function updateDays(count){
@@ -946,9 +967,24 @@ export function RoutineEditor({routine,exercises,users,onSave,onBack,saving=fals
     <button className="back-btn" onClick={onBack}>← Volver a Rutinas</button>
     <div className="ph"><div><div className="pt">{routine?"Editar Rutina":"Nueva Rutina"}</div></div><SaveBtn className="btn btn-ok" onClick={saveRoutine} saving={saving}>💾 Guardar</SaveBtn></div>
     <div className="card" style={{marginBottom:12}}>
-      <div className="fr2">
-        <div className="fg"><label>Título</label><input className="inp" value={rt.title} onChange={e=>setRt(r=>({...r,title:e.target.value}))}/></div>
-        <div className="fg"><label>Cliente</label><select className="sel" value={rt.userId} onChange={e=>setRt(r=>({...r,userId:e.target.value}))}><option value="">— Seleccionar —</option>{users.map(u=><option key={u.id} value={u.id}>{u.name}</option>)}</select></div>
+      <div className="fg"><label>Título</label><input className="inp" value={rt.title} onChange={e=>setRt(r=>({...r,title:e.target.value}))}/></div>
+      <div className="fg">
+        <label>Asignar a clientes ({(rt.assignedUserIds||[]).length})</label>
+        <div style={{maxHeight:190,overflowY:"auto",border:"1px solid #DDE4F0",borderRadius:8,padding:"4px 6px"}}>
+          {clientsList.map(u=>{const assigned=assignedSet.has(u.id);const active=activeIds.has(u.id);return(
+            <div key={u.id} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 2px",borderBottom:"1px solid #EEF1F7"}}>
+              <label style={{display:"flex",alignItems:"center",gap:7,flex:1,cursor:"pointer",fontSize:13,minWidth:0}}>
+                <input type="checkbox" checked={assigned} onChange={()=>toggleAssign(u.id)}/>
+                <span style={{fontWeight:assigned?700:500,color:"#0B1F4B",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{u.name}</span>
+              </label>
+              <button type="button" onClick={()=>toggleActive(u.id)} title={active?"Rutina activa para este cliente":"Marcar como activa para este cliente"}
+                style={{background:active?"#E8F5E9":"#F4F6FB",border:`1px solid ${active?"#A5D6A7":"#DDE4F0"}`,borderRadius:6,padding:"3px 9px",fontSize:11,fontWeight:700,color:active?"#2E7D32":"#6B7A99",cursor:"pointer",whiteSpace:"nowrap"}}>
+                {active?"⭐ Activa":"Activar"}
+              </button>
+            </div>);})}
+          {clientsList.length===0&&<div style={{fontSize:12,color:"#6B7A99",padding:8}}>No hay clientes disponibles</div>}
+        </div>
+        <div style={{fontSize:10,color:"#6B7A99",marginTop:4}}>La misma rutina puede asignarse a varios clientes. La marca "activa" es independiente por cliente.</div>
       </div>
       <div className="fr2">
         <div className="fg"><label>Días por semana</label>
@@ -1006,7 +1042,7 @@ export function RoutineEditor({routine,exercises,users,onSave,onBack,saving=fals
 }
 
 // ── ROUTINES LIST ──
-export function RoutinesPage({routines,setRoutines,users,setUsers,exercises}){
+export function RoutinesPage({routines,setRoutines,users,setUsers,exercises,saveRoutineAssignments}){
   const{readOnly}=usePermissions();
   const[editing,setEditing]=useState(null);
   const[filterUser,setFilterUser]=useState("__all__");
@@ -1014,12 +1050,28 @@ export function RoutinesPage({routines,setRoutines,users,setUsers,exercises}){
   const[saving,wrap]=useSaving();
   const ERR="Hubo un problema al guardar. Intentá de nuevo en unos minutos.";
 
-  async function saveRoutine(rt){
+  async function saveRoutine(rt,activeUserIds=[]){
     const exists=routines.find(r=>r.id===rt.id);
     const now=new Date().toISOString();
+    // "primary" = primer cliente asignado. Se guarda en routines.user_id para que la
+    // función save_routine derive el organization_id y por compatibilidad legacy.
+    const primary=(rt.assignedUserIds&&rt.assignedUserIds[0])||rt.userId||"";
+    const rtSave={...rt,userId:primary};
     try{
-      if(exists)await setRoutines(routines.map(r=>r.id===rt.id?{...rt,updatedAt:now}:r));
-      else await setRoutines([...routines,{...rt,createdAt:now,updatedAt:now}]);
+      // 1) Rutina (días/grupos/ejercicios)
+      if(exists)await setRoutines(routines.map(r=>r.id===rt.id?{...rtSave,updatedAt:now}:r));
+      else await setRoutines([...routines,{...rtSave,createdAt:now,updatedAt:now}]);
+      // 2) Asignaciones (a qué clientes está asignada)
+      if(saveRoutineAssignments)await saveRoutineAssignments(rt.id,rt.assignedUserIds||[]);
+      // 3) Rutina activa por cliente (independiente): activar para los marcados,
+      //    desactivar para quien la tenía activa y ya no está marcado.
+      const activeSet=new Set(activeUserIds);
+      const newUsers=users.map(u=>{
+        if(activeSet.has(u.id))return u.activeRoutineId===rt.id?u:{...u,activeRoutineId:rt.id};
+        if(u.activeRoutineId===rt.id)return{...u,activeRoutineId:null};
+        return u;
+      });
+      if(JSON.stringify(newUsers)!==JSON.stringify(users))await setUsers(newUsers);
       setEditing(null);
       setToast({msg:exists?"Rutina actualizada":"Rutina creada",type:"ok"});
     }catch(e){console.error(e);setToast({msg:ERR,type:"err"});}
@@ -1031,32 +1083,33 @@ export function RoutinesPage({routines,setRoutines,users,setUsers,exercises}){
   }
   async function duplicate(rt){
     const now=new Date().toISOString();
-    const newRt={...JSON.parse(JSON.stringify(rt)),id:genId(),title:rt.title+" (copia)",createdAt:now,updatedAt:now,userId:""};
-    try{await setRoutines([...routines,newRt]);setToast({msg:"Rutina duplicada",type:"ok"});}
+    const newRt={...JSON.parse(JSON.stringify(rt)),id:genId(),title:rt.title+" (copia)",createdAt:now,updatedAt:now,userId:"",assignedUserIds:[]};
+    try{await setRoutines([...routines,newRt]);setToast({msg:"Rutina duplicada (sin asignar)",type:"ok"});}
     catch(e){console.error(e);setToast({msg:ERR,type:"err"});}
   }
-  async function setActive(rt){
-    if(!rt.userId)return;
-    try{await setUsers(users.map(u=>u.id===rt.userId?{...u,activeRoutineId:rt.id}:u));setToast({msg:"Rutina activa actualizada",type:"ok"});}
+  async function setActiveFor(rt,userId){
+    if(!userId)return;
+    try{await setUsers(users.map(u=>u.id===userId?{...u,activeRoutineId:rt.id}:u));setToast({msg:"Rutina activa actualizada",type:"ok"});}
     catch(e){console.error(e);setToast({msg:ERR,type:"err"});}
   }
 
-  // Clients that have at least one routine
-  const usersWithRoutines=users.filter(u=>routines.some(r=>r.userId===u.id));
+  // Clientes que tienen al menos una rutina asignada
+  const usersWithRoutines=users.filter(u=>routines.some(r=>(r.assignedUserIds||[]).includes(u.id)));
 
-  // Filter + sort: active first, then by createdAt desc
+  // Filtrar + ordenar: si hay filtro por cliente, las activas para ESE cliente primero
   const filtered=routines
-    .filter(r=>filterUser==="__all__"||r.userId===filterUser)
+    .filter(r=>filterUser==="__all__"||(r.assignedUserIds||[]).includes(filterUser))
     .sort((a,b)=>{
-      const userA=users.find(u=>u.id===a.userId);
-      const userB=users.find(u=>u.id===b.userId);
-      const aActive=userA&&userA.activeRoutineId===a.id?1:0;
-      const bActive=userB&&userB.activeRoutineId===b.id?1:0;
-      if(aActive!==bActive)return bActive-aActive;
+      if(filterUser!=="__all__"){
+        const fu=users.find(u=>u.id===filterUser);
+        const aActive=fu&&fu.activeRoutineId===a.id?1:0;
+        const bActive=fu&&fu.activeRoutineId===b.id?1:0;
+        if(aActive!==bActive)return bActive-aActive;
+      }
       return new Date(b.createdAt||b.updatedAt||0)-new Date(a.createdAt||a.updatedAt||0);
     });
 
-  if(editing!==null)return<RoutineEditor routine={editing==="__new__"?null:editing} exercises={exercises} users={users} onSave={rt=>wrap(()=>saveRoutine(rt))} saving={saving} onBack={()=>setEditing(null)}/>;
+  if(editing!==null)return<RoutineEditor routine={editing==="__new__"?null:editing} exercises={exercises} users={users} onSave={(rt,activeIds)=>wrap(()=>saveRoutine(rt,activeIds))} saving={saving} onBack={()=>setEditing(null)}/>;
   return(<div>
     {toast&&<Toast msg={toast.msg} type={toast.type} onDone={()=>setToast(null)}/>}
     <div className="ph"><div><div className="pt">Rutinas</div><div className="ps">{filtered.length} rutina{filtered.length!==1?"s":""}</div></div>{!readOnly&&<button className="btn btn-p" onClick={()=>setEditing("__new__")}>+ Nueva</button>}</div>
@@ -1067,27 +1120,36 @@ export function RoutinesPage({routines,setRoutines,users,setUsers,exercises}){
       </select>
       {filterUser!=="__all__"&&<button onClick={()=>setFilterUser("__all__")} style={{fontSize:12,color:"#6B7A99",background:"none",border:"none",cursor:"pointer",padding:"4px 8px"}}>✕ Limpiar</button>}
     </div>
-    {filtered.map(rt=>{const user=users.find(u=>u.id===rt.userId);const totalEx=rt.days?.reduce((s,d)=>s+d.groups.reduce((ss,g)=>ss+g.exercises.length,0),0)||0;
-    const isActive=user&&user.activeRoutineId===rt.id;
-    return(<div key={rt.id} className="card" style={{marginBottom:10,border:isActive?"2px solid #2E7D32":""}}>
+    {filtered.map(rt=>{
+    const assigned=(rt.assignedUserIds||[]).map(id=>users.find(u=>u.id===id)).filter(Boolean);
+    const totalEx=rt.days?.reduce((s,d)=>s+d.groups.reduce((ss,g)=>ss+g.exercises.length,0),0)||0;
+    const filterU=filterUser!=="__all__"?users.find(u=>u.id===filterUser):null;
+    const activeForFilter=filterU&&filterU.activeRoutineId===rt.id;
+    const isActiveAny=assigned.some(u=>u.activeRoutineId===rt.id);
+    const highlight=filterU?activeForFilter:isActiveAny;
+    return(<div key={rt.id} className="card" style={{marginBottom:10,border:highlight?"2px solid #2E7D32":""}}>
       <div style={{display:"flex",alignItems:"flex-start",gap:10}}>
-        <div style={{flex:1}}>
+        <div style={{flex:1,minWidth:0}}>
           <div style={{display:"flex",alignItems:"center",gap:7,marginBottom:5,flexWrap:"wrap"}}>
             <span style={{fontFamily:"'Barlow Condensed',sans-serif",fontSize:17,fontWeight:900,color:"#0B1F4B"}}>{rt.title}</span>
             <span className="badge bd-blue">{rt.daysPerWeek}d/sem</span>
-            {user&&<span className="badge bd-green">{user.name}</span>}
-            {isActive&&<span className="badge" style={{background:"#E8F5E9",color:"#2E7D32",border:"1px solid #A5D6A7"}}>⭐ Activa</span>}
+          </div>
+          <div style={{display:"flex",alignItems:"center",gap:5,flexWrap:"wrap",marginBottom:5}}>
+            {assigned.length===0&&<span className="badge bd-gray">Sin asignar</span>}
+            {assigned.map(u=>{const act=u.activeRoutineId===rt.id;return(
+              <span key={u.id} className="badge" style={act?{background:"#E8F5E9",color:"#2E7D32",border:"1px solid #A5D6A7"}:{background:"#E3F0FF",color:"#1A5DC8",border:"1px solid #BBDEFB"}}>{act&&"⭐ "}{u.name}</span>);})}
           </div>
           <div style={{fontSize:11,color:"#6B7A99",display:"flex",gap:12,flexWrap:"wrap"}}>
+            <span>👥 {assigned.length} asignado{assigned.length!==1?"s":""}</span>
             <span>📅 {rt.days?.length||0} días</span><span>🏋️ {totalEx} ejercicios</span>
             {(rt.createdAt||rt.updatedAt)&&<span>📆 {fmtDate(rt.createdAt||rt.updatedAt)}</span>}
           </div>
         </div>
         <div style={{display:"flex",gap:5,flexShrink:0,flexWrap:"wrap"}}>
-          {rt.userId&&!isActive&&<button className="btn btn-sm" style={{background:"#E8F5E9",color:"#2E7D32",border:"1px solid #A5D6A7"}} onClick={()=>setActive(rt)}>⭐ Activar</button>}
-          <button className="btn btn-g btn-sm" onClick={()=>duplicate(rt)}>📋 Duplicar</button>
+          {filterU&&(rt.assignedUserIds||[]).includes(filterU.id)&&!activeForFilter&&!readOnly&&<button className="btn btn-sm" style={{background:"#E8F5E9",color:"#2E7D32",border:"1px solid #A5D6A7"}} onClick={()=>setActiveFor(rt,filterU.id)}>⭐ Activar p/ {filterU.name.split(" ")[0]}</button>}
+          {!readOnly&&<button className="btn btn-g btn-sm" onClick={()=>duplicate(rt)}>📋 Duplicar</button>}
           <button className="btn btn-s btn-sm" onClick={()=>setEditing(rt)}>✏️ Editar</button>
-          <button className="btn btn-d btn-sm" onClick={()=>del(rt.id)}>🗑</button>
+          {!readOnly&&<button className="btn btn-d btn-sm" onClick={()=>del(rt.id)}>🗑</button>}
         </div>
       </div>
     </div>);})}
@@ -1468,7 +1530,7 @@ export function MyRoutinePage({user,routines,exercises,workoutSessions=[],setWor
 
   // Sort: active first, then by createdAt desc
   const userRoutines=routines
-    .filter(r=>r.userId===user.id)
+    .filter(r=>(r.assignedUserIds||[]).includes(user.id)||r.userId===user.id)
     .sort((a,b)=>{
       const aActive=a.id===user.activeRoutineId?1:0;
       const bActive=b.id===user.activeRoutineId?1:0;

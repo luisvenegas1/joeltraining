@@ -306,7 +306,44 @@ export async function getRoutines() {
     groups: groupsWithEx.filter((g) => g.day_id === d.id),
   }));
 
-  return routines.map((r) => dbToRoutine(r, daysWithGroups));
+  // 6. Asignaciones (a qué usuarios está asignada cada rutina). Falla suave si
+  //    aún no se aplicó la migración 0017: usa routine.user_id como asignación única.
+  const assignMap = {};
+  try {
+    const { data: assigns, error: aErr } = await sb
+      .from("routine_assignments")
+      .select("routine_id,user_id")
+      .in("routine_id", routineIds);
+    if (!aErr && assigns) {
+      for (const a of assigns) {
+        (assignMap[a.routine_id] = assignMap[a.routine_id] || []).push(a.user_id);
+      }
+    }
+  } catch {
+    /* tabla routine_assignments no disponible todavía */
+  }
+
+  return routines.map((r) => {
+    const routine = dbToRoutine(r, daysWithGroups);
+    const assigned = assignMap[r.id];
+    routine.assignedUserIds = assigned && assigned.length ? assigned : r.user_id ? [r.user_id] : [];
+    return routine;
+  });
+}
+
+// Reemplaza el conjunto de usuarios asignados a una rutina (delete + insert).
+// El organization_id lo autocompleta un trigger desde la rutina (migración 0017).
+export async function setRoutineAssignments(routineId, userIds) {
+  await sb.from("routine_assignments").delete().eq("routine_id", routineId);
+  const rows = (userIds || []).map((uid) => ({
+    id: "rasg_" + Math.random().toString(36).slice(2, 12),
+    routine_id: routineId,
+    user_id: uid,
+  }));
+  if (rows.length) {
+    const { error } = await sb.from("routine_assignments").insert(rows);
+    if (error) throw error;
+  }
 }
 
 // Guarda una rutina de forma TRANSACCIONAL vía la función Postgres save_routine.

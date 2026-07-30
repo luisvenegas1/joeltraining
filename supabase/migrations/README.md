@@ -23,9 +23,11 @@ las únicas que aplica `supabase db push`.
 | 14 | `0014_organization_subscriptions.sql` | Tabla de suscripción + `platform_admins` + helpers + admin manual (SIN seed de Johel) | No | 01 |
 | 15 | `0015_subscription_policies.sql` | Recrea policies operativas con gate de suscripción (INERTES hasta RLS) + policies de suscripción/superadmin | No | 08, 14 |
 | 16 | `0016_public_org_read.sql` | Lectura PÚBLICA de `organizations` + `organization_settings` (para login/branding pre-auth con RLS). INERTE hasta RLS | No | 01, 08 |
+| 17 | `0017_routine_assignments.sql` | Tabla `routine_assignments` (asignar una rutina a **varios** clientes) + trigger de org | No | 01, 04 |
+| 18 | `0018_routine_assignment_rls.sql` | Redefine helpers `client_owns_*` (contemplan asignaciones) + policies de `routines`/`routine_assignments`. INERTE hasta RLS | No | 08, 15, 17 |
 
 Lista real que aplica `db push` en el repo:
-**0001, 0002, 0004, 0005, 0006, 0007, 0008, 0013, 0014, 0015, 0016.**
+**0001, 0002, 0004, 0005, 0006, 0007, 0008, 0013, 0014, 0015, 0016, 0017, 0018.**
 
 Estado preproducción: en Supabase ya están aplicadas 0001–0015 y **ya se ejecutaron**
 el bootstrap de Johel y el seed de la demo (Tito Trainer). **Pendiente de aplicar: 0016**
@@ -41,6 +43,7 @@ Johel se hacen **a mano** en el bootstrap (abajo), no con `db push`.
 |-----------|--------|--------|
 | `../cutover/bootstrap_johel_preflight.sql` | Preflight de Johel (SOLO LECTURA) | Tras `db push`, revisar/aprobar |
 | `../cutover/bootstrap_johel_apply.sql` | Johel + backfill + suscripción con verificación atómica | Solo tras aprobar el preflight |
+| `../cutover/backfill_routine_assignments.sql` | Backfill de `routine_assignments` desde `routines.user_id` (legacy) | Una vez, tras aplicar 0017 |
 | `../validation/pre_rls.sql` | Validaciones pre-RLS (solo lectura) | Antes de activar RLS |
 | `../cutover/storage.sql` | Buckets + policies de Storage | En el cutover (tras 07) |
 | `../cutover/enable_rls.sql` | **Activa RLS** (el "corte") con GUARD | Solo tras go/no-go |

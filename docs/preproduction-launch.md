@@ -21,12 +21,20 @@ git push origin feature/multitenant-saas
 ```
 `.gitignore` ya ignora `supabase/.temp/` y `vite.config.js.timestamp-*`. No commitees backups ni secretos.
 
-### 2) Aplicar la migración pendiente `0016` (lectura pública de organización)
-Necesaria para que el login resuelva el tenant/branding con RLS activo. Es aditiva e
-**inerte mientras RLS esté apagado**, así que es seguro aplicarla ya:
+### 2) Aplicar las migraciones pendientes (`0016`, `0017`, `0018`)
+- `0016`: lectura pública de organización (para login/branding con RLS).
+- `0017`: tabla `routine_assignments` (asignar una rutina a **varios** clientes).
+- `0018`: RLS de asignaciones (inerte hasta activar RLS).
+Todas aditivas e **inertes mientras RLS esté apagado**:
 ```bash
-supabase db push          # aplica 0016 (revisá antes con: supabase db push --dry-run)
+supabase db push          # revisá antes con: supabase db push --dry-run
 ```
+Luego, una vez, correr el backfill de asignaciones (idempotente):
+```sql
+\i supabase/cutover/backfill_routine_assignments.sql
+```
+Crea una asignación por cada rutina que ya tenía `user_id`, para que las rutinas
+existentes sigan asignadas. (En la demo/Johel de preprod es seguro y necesario.)
 
 ### 3) Variables en Vercel (Production **y** Preview)
 ```

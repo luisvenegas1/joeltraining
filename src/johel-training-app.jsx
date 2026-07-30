@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import {
   getUsers, upsertUser, deleteUser,
   getExercises, upsertExercise, deleteExercise,
-  getRoutines, upsertRoutine, deleteRoutine,
+  getRoutines, upsertRoutine, deleteRoutine, setRoutineAssignments,
   getMeasurements, upsertMeasurement, deleteMeasurement,
   getPayments, upsertPayment, deletePayment,
   getWorkoutSessions, upsertWorkoutSession, deleteWorkoutSession,
@@ -120,10 +120,19 @@ function useAppData() {
   }
   const catalogValue = buildCatalogValue(catalogOverrides, saveCategory);
 
+  // Asigna una rutina a un conjunto de usuarios (persiste + refleja en estado).
+  async function saveRoutineAssignments(routineId, userIds) {
+    const prev = routines;
+    setRoutinesState((rs) => rs.map((r) => (r.id === routineId ? { ...r, assignedUserIds: userIds } : r)));
+    try { await setRoutineAssignments(routineId, userIds); }
+    catch (e) { setRoutinesState(prev); console.error("Error guardando asignaciones:", e); throw e; }
+  }
+
   return {
     exercises, users, routines, measurements, payments, workoutSessions,
     loading, dbError, load, catalogValue,
     setUsers, setExercises, setRoutines, setMeasurements, setPayments, setWorkoutSessions,
+    saveRoutineAssignments,
   };
 }
 
@@ -138,7 +147,7 @@ function MainApp({ currentUser, capabilityRole = "owner", onLogout, data }) {
   if (isT) {
     if (page === "dashboard") content = <Dashboard users={data.users} routines={data.routines} />;
     else if (page === "clients") content = <ClientsPage users={data.users} setUsers={data.setUsers} routines={data.routines} measurements={data.measurements} setMeasurements={data.setMeasurements} payments={data.payments} setPayments={data.setPayments} workoutSessions={data.workoutSessions} setWorkoutSessions={data.setWorkoutSessions} exercises={data.exercises} selectedClientId={null} />;
-    else if (page === "routines") content = <RoutinesPage routines={data.routines} setRoutines={data.setRoutines} users={data.users} setUsers={data.setUsers} exercises={data.exercises} />;
+    else if (page === "routines") content = <RoutinesPage routines={data.routines} setRoutines={data.setRoutines} users={data.users} setUsers={data.setUsers} exercises={data.exercises} saveRoutineAssignments={data.saveRoutineAssignments} />;
     else if (page === "exercises") content = <ExercisesPage exercises={data.exercises} setExercises={data.setExercises} />;
     else if (page === "admins") content = <AdminsPage />;
   } else {

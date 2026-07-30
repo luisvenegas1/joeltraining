@@ -51,6 +51,7 @@ alter table public.routines             enable row level security;
 alter table public.routine_days         enable row level security;
 alter table public.routine_groups       enable row level security;
 alter table public.routine_exercises    enable row level security;
+alter table public.routine_assignments  enable row level security;
 alter table public.measurements         enable row level security;
 alter table public.payments             enable row level security;
 alter table public.workout_sessions     enable row level security;
