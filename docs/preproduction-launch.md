@@ -40,7 +40,9 @@ NO configurés `SUPABASE_SERVICE_ROLE_KEY` en Vercel (frontend). No hay secretos
 
 ### 4) Deploy
 Deploy normal de la rama en Vercel. Las rutas `/joheltraining` y `/titotrainer`
-funcionan en el dominio `*.vercel.app` y en `titoapps.com` (SPA rewrite en `vercel.json`).
+funcionan en previews `*.vercel.app` y en el apex `tito-apps.com` (SPA rewrite en
+`vercel.json`). Producción de Johel: **`joeltraining.tito-apps.com`** (el subdominio
+`joeltraining` resuelve al slug `joheltraining` por alias).
 
 ### 5) Provisionar las 3 cuentas Auth (idempotente, fuera del navegador)
 ```bash

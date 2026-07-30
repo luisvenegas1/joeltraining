@@ -9,10 +9,12 @@ Una sola app, un repo, un deployment y una base Supabase que sirve a múltiples
 entrenadores como organizaciones aisladas, resueltas por hostname/slug:
 
 ```
-joheltraining.titoapps.com  → Johel Training (production)
-titotrainer.titoapps.com    → Tito Trainer Demo (demo)
-brunotraining.titoapps.com  → futuros entrenadores (production)
+joeltraining.tito-apps.com  → Johel Training (production)   [subdominio joeltraining → slug joheltraining]
+titotrainer.tito-apps.com   → Tito Trainer Demo (demo)
+brunotraining.tito-apps.com → futuros entrenadores (production)
 ```
+Familia de dominio: `tito-apps.com` (con guion, producción) y `titoapps.com` (futuro).
+Mientras no haya wildcard DNS, la demo/pruebas van por ruta (`/joheltraining`, `/titotrainer`).
 
 Prioridad absoluta: **no perder ninguna función ni dato de Johel**.
 
@@ -50,7 +52,7 @@ auth.user  →  profile  →  organization_members  →  organization
 
 `src/tenant/resolveTenant.js` (puro, testeado):
 
-1. `*.titoapps.com` → slug del subdominio.
+1. `*.tito-apps.com` / `*.titoapps.com` → slug del subdominio (joeltraining → joheltraining).
 2. dev/local → slug del primer segmento de la ruta (`/joheltraining`).
 3. dominios personalizados (`app.brunofitness.com`) → tabla `custom_domains` (fase futura).
 4. **Host desconocido → `null`** (UI "Organización no encontrada"). Nunca Johel por defecto.
@@ -99,7 +101,7 @@ El historial de entrenamientos usa **snapshots** (ya implementado en `workout_lo
 
 - Ejecutar cualquier migración en Supabase remoto.
 - Crear usuarios Auth reales (requiere `service_role`/Edge Function).
-- Cambiar Vercel, DNS o `*.titoapps.com`.
+- Cambiar Vercel, DNS o `*.tito-apps.com`.
 - Desplegar a producción.
 - Cualquier acción que pueda perder datos.
 

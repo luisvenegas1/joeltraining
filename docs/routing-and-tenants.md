@@ -5,15 +5,21 @@
 `src/tenant/resolveTenant.js` (puro, testeado) + `src/tenant/TenantProvider.jsx`,
 en este orden:
 
-1. **Subdominio de plataforma** (`<slug>.titoapps.com`) → tiene **prioridad**.
-   `joheltraining.titoapps.com` → `joheltraining`; `titotrainer...` → `titotrainer`.
-   (Objetivo final, requiere `titoapps.com` + wildcard DNS.)
-2. **Por RUTA** (primer segmento) en estos hosts: `titoapps.com`, `www.titoapps.com`,
-   `localhost`, `*.local` y **`*.vercel.app`** (previews y dominios de Vercel).
+Familias de dominio de plataforma: **`tito-apps.com`** (producción real, con guion) y
+**`titoapps.com`** (soporte futuro, sin guion).
+
+1. **Subdominio de plataforma** (`<slug>.tito-apps.com` o `<slug>.titoapps.com`) →
+   tiene **prioridad**. El subdominio de producción es **`joeltraining`** (nombre de la
+   app) y mapea al slug **`joheltraining`** (alias de subdominio):
+   - `joeltraining.tito-apps.com` → `joheltraining` (**producción actual de Johel**)
+   - `titotrainer.tito-apps.com` → `titotrainer`
+   - `joeltraining.titoapps.com` → `joheltraining` (familia futura)
+2. **Por RUTA** (primer segmento) en: apex/www de ambas familias (`tito-apps.com`,
+   `www.tito-apps.com`, `titoapps.com`, `www.titoapps.com`), `localhost`, `*.local` y
+   **`*.vercel.app`** (previews y dominios de Vercel).
    `…/joheltraining` → `joheltraining`; `…/titotrainer` → `titotrainer`.
    `VITE_DEFAULT_TENANT_SLUG` puede forzar uno por defecto si no hay ruta.
-   → Esto permite **probar el SaaS en previews de Vercel y en el apex ANTES** de
-   configurar el wildcard DNS.
+   → Permite **probar el SaaS en previews de Vercel y en el apex** sin wildcard DNS.
 3. **Host desconocido** o **dominio personalizado no registrado**
    (`app.brunofitness.com`) → `null` → pantalla **"Organización no encontrada"**.
    **Nunca** se usa Johel como fallback. Los dominios personalizados se resolverán
@@ -25,14 +31,17 @@ Luego `loadTenantBySlug(slug)` busca la org, valida `status='active'` y carga su
 branding. Cambiar el slug/hostname **no** da acceso a otra organización: los datos
 están protegidos por Auth + RLS (membresía validada en la base).
 
-## Estrategia de dominios: rutas primero, subdominios después
+## Estrategia de dominios
 
-**Inicialmente usaremos rutas** (`/joheltraining`, `/titotrainer`) sobre el dominio
-de Vercel (`*.vercel.app`) y/o el apex `titoapps.com`. Los **subdominios**
-(`joheltraining.titoapps.com`) son una **mejora posterior**: se habilitan cuando
-conectemos `titoapps.com` a Vercel y configuremos el **wildcard DNS** (`*.titoapps.com`,
-ver `docs/vercel-and-dns.md`). El código ya soporta ambos: cuando exista el
-subdominio, tiene prioridad automáticamente; mientras tanto, la ruta funciona igual.
+- **Producción de Johel:** `joeltraining.tito-apps.com` (subdominio actual) → resuelve
+  al slug `joheltraining` por alias de subdominio. Ya funciona sin wildcard.
+- **Demo y pruebas:** por **ruta** (`/titotrainer`, `/joheltraining`) sobre previews de
+  Vercel (`*.vercel.app`) y sobre el apex (`tito-apps.com`).
+- **Más subdominios** (`titotrainer.tito-apps.com`, `brunotraining.tito-apps.com`) son
+  una **mejora posterior**: se habilitan al configurar el **wildcard DNS**
+  (`*.tito-apps.com`, ver `docs/vercel-and-dns.md`). El código ya los soporta: cuando
+  exista el subdominio, tiene prioridad automáticamente.
+- La familia sin guion **`titoapps.com`** también está soportada para el futuro.
 
 ## Modo legacy vs multi-tenant (flag)
 

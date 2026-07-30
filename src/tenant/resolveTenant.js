@@ -1,12 +1,16 @@
 // Resolución de tenant (organización) por hostname o ruta.
 // Módulo PURO y sin efectos: no toca el DOM ni la red. Se prueba en aislamiento.
 //
+// Familias de dominio de plataforma: `tito-apps.com` (producción real, con guion)
+// y `titoapps.com` (soporte futuro, sin guion).
+//
 // Orden de resolución:
-//  1) <slug>.titoapps.com  -> el SUBDOMINIO tiene prioridad (producción final).
-//  2) titoapps.com | www.titoapps.com | localhost | *.local | *.vercel.app
+//  1) <slug>.tito-apps.com / <slug>.titoapps.com -> el SUBDOMINIO tiene prioridad.
+//     El subdominio "joeltraining" (nombre de la app) mapea al slug "joheltraining".
+//        joeltraining.tito-apps.com -> joheltraining
+//        titotrainer.tito-apps.com  -> titotrainer
+//  2) Apex/www de cualquier familia + localhost + *.local + *.vercel.app
 //     -> resolver el slug por el PRIMER segmento de ruta (/joheltraining, /titotrainer).
-//     Así se puede probar el SaaS en previews de Vercel y en el apex ANTES de
-//     configurar el wildcard DNS.
 //  3) Host desconocido / dominio personalizado no registrado -> null.
 //
 // Reglas críticas:
@@ -14,11 +18,15 @@
 //  - Si no se puede determinar el slug, devolver null (la UI muestra
 //    "Organización no encontrada"); jamás asumir un tenant.
 
-const APEX_HOSTS = new Set(["titoapps.com", "www.titoapps.com"]);
+const PLATFORM_DOMAINS = ["tito-apps.com", "titoapps.com"];
+const APEX_HOSTS = new Set(PLATFORM_DOMAINS.flatMap((d) => [d, `www.${d}`]));
 // Hosts que no representan un subdominio-tenant (se resuelve por ruta):
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "0.0.0.0"]);
+// El subdominio de producción es "joeltraining" (nombre de la app), pero el slug
+// del tenant en la BD es "joheltraining". Alias de subdominio → slug.
+const SUBDOMAIN_SLUG_ALIASES = { joeltraining: "joheltraining" };
 
-/** ¿Este host resuelve el tenant por RUTA? (apex, www, localhost, *.local, *.vercel.app) */
+/** ¿Este host resuelve el tenant por RUTA? (apex/www de plataforma, localhost, *.local, *.vercel.app) */
 export function usesPathResolution(hostname) {
   const host = String(hostname || "").toLowerCase().split(":")[0];
   return (
@@ -29,25 +37,26 @@ export function usesPathResolution(hostname) {
   );
 }
 
-/** Extrae el slug del subdominio de un hostname de la plataforma. */
+/** Extrae el slug del subdominio de un hostname de plataforma (con alias). */
 export function slugFromHostname(hostname) {
   if (!hostname) return null;
   const host = String(hostname).toLowerCase().split(":")[0];
 
-  if (LOCAL_HOSTS.has(host)) return null;         // dev -> resolver por ruta
-  if (APEX_HOSTS.has(host)) return null;          // apex -> landing, no tenant
+  if (LOCAL_HOSTS.has(host)) return null;   // dev -> resolver por ruta
+  if (APEX_HOSTS.has(host)) return null;    // apex/www -> resolver por ruta
 
-  // sub.titoapps.com -> "sub"
-  if (host.endsWith(".titoapps.com")) {
-    const sub = host.slice(0, -".titoapps.com".length);
-    if (!sub || sub === "www") return null;
-    // solo el primer segmento cuenta como slug
-    return sub.split(".")[0] || null;
+  for (const domain of PLATFORM_DOMAINS) {
+    const suffix = `.${domain}`;
+    if (host.endsWith(suffix)) {
+      // primer segmento del subdominio
+      const sub = host.slice(0, -suffix.length).split(".")[0];
+      if (!sub || sub === "www") return null;
+      return SUBDOMAIN_SLUG_ALIASES[sub] || sub;
+    }
   }
 
-  // Dominio personalizado (app.brunofitness.com): no es *.titoapps.com.
-  // Se resolverá vía tabla custom_domains (fase futura). Aquí: null => que
-  // el resolver de dominios personalizados lo maneje, no adivinar.
+  // Dominio personalizado (app.brunofitness.com) o desconocido: null (nunca adivinar).
+  // Los dominios personalizados se resolverán vía tabla custom_domains (fase futura).
   return null;
 }
 
