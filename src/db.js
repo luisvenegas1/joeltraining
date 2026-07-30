@@ -1,11 +1,18 @@
 import { sb } from "./supabase";
+import { buildRoutinePayload, isMissingFunctionError } from "./routines/routinePayload";
+
+// Se habilita SOLO después de aplicar la migración 0013 (columna users.avatar_url).
+// Por defecto apagado: así userToDb no intenta escribir una columna inexistente y
+// el modo legacy sigue funcionando.
+const AVATAR_URL_ENABLED =
+  String(import.meta.env.VITE_AVATAR_URL_ENABLED || "").toLowerCase() === "on";
 
 // ═══════════════════════════════════════════
 // HELPERS
 // ═══════════════════════════════════════════
 
 // Convierte un user de BD (snake_case) al formato que usa la app (camelCase)
-function dbToUser(u) {
+export function dbToUser(u) {
   if (!u) return null;
   return {
     id: u.id,
@@ -20,6 +27,8 @@ function dbToUser(u) {
     height: u.height || "",
     notes: u.notes || "",
     activeRoutineId: u.active_routine_id || null,
+    avatarUrl: u.avatar_url || "",
+    organizationId: u.organization_id || null,
     disabled: u.disabled || false,
     plan: {
       type: u.plan_type || "",
@@ -48,6 +57,9 @@ function userToDb(u) {
     height: u.height || null,
     notes: u.notes || null,
     active_routine_id: u.activeRoutineId || null,
+    // avatar_url se persiste solo si VITE_AVATAR_URL_ENABLED=on (tras aplicar 0013),
+    // para no romper el guardado si la columna aún no existe.
+    ...(AVATAR_URL_ENABLED ? { avatar_url: u.avatarUrl || null } : {}),
     disabled: u.disabled || false,
     plan_type: u.plan?.type || null,
     plan_modality: u.plan?.modality || null,
@@ -170,7 +182,8 @@ function dbToPayment(p) {
     date: p.date,
     endDate: p.end_date,
     amount: p.amount || "",
-    period: p.period || "",
+    // La columna `period` guarda la cantidad de meses del pago.
+    months: p.period != null && p.period !== "" ? Number(p.period) : 1,
     notes: p.notes || "",
   };
 }
@@ -182,8 +195,9 @@ function paymentToDb(p) {
     date: p.date || null,
     end_date: p.endDate || null,
     amount: p.amount || null,
-    period: p.period || null,
+    period: p.months != null ? p.months : null,
     notes: p.notes || null,
+    // organization_id lo autocompleta un trigger desde el cliente (ver migración 0004).
   };
 }
 
@@ -295,7 +309,24 @@ export async function getRoutines() {
   return routines.map((r) => dbToRoutine(r, daysWithGroups));
 }
 
+// Guarda una rutina de forma TRANSACCIONAL vía la función Postgres save_routine.
+// Si la función aún no existe en la BD (migración 0006 sin aplicar), hace fallback
+// al guardado legacy para no romper la app. Cuando 0006 esté aplicada, el guardado
+// es atómico: si algo falla, la rutina anterior queda intacta.
 export async function upsertRoutine(routine) {
+  const payload = buildRoutinePayload(routine);
+  const { error } = await sb.rpc("save_routine", { p: payload });
+  if (!error) return;
+  if (isMissingFunctionError(error)) {
+    // La RPC no está disponible todavía: usar el camino legacy.
+    return upsertRoutineLegacy(routine);
+  }
+  // Error real (constraint, etc.): NO caer al legacy (evita corrupción parcial).
+  throw error;
+}
+
+// Guardado legacy NO transaccional (fallback temporal hasta aplicar 0006).
+async function upsertRoutineLegacy(routine) {
   // 1. Guardar la rutina principal
   const { error: rErr } = await sb.from("routines").upsert(
     {
