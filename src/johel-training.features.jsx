@@ -75,12 +75,14 @@ export function Dashboard({users}){
 // ── EDITOR DE CATÁLOGOS (listas editables) ──
 export function CatalogEditor(){
   const cat=useCatalogs();
+  const{readOnly}=usePermissions();
   const[adding,setAdding]=useState(null);
   const[newVal,setNewVal]=useState("");
   const[busy,setBusy]=useState(false);
   const[toast,setToast]=useState(null);
   const ERR="No se pudo guardar. ¿Corriste supabase-catalogos.sql? Intentá de nuevo.";
   async function addItem(m){
+    if(readOnly)return;
     const v=newVal.trim();
     if(!v){return;}
     if(cat[m.key].some(x=>x.toLowerCase()===v.toLowerCase())){setNewVal("");setAdding(null);return;}
@@ -90,6 +92,7 @@ export function CatalogEditor(){
     finally{setBusy(false);setNewVal("");setAdding(null);}
   }
   async function removeItem(m,item){
+    if(readOnly)return;
     if(!confirm(`¿Quitar "${item}" de ${m.label}?`))return;
     try{await cat.saveCategory(m.dbCat,cat[m.key].filter(x=>x!==item));setToast({msg:"Lista actualizada",type:"ok"});}
     catch(e){console.error(e);setToast({msg:ERR,type:"err"});}
@@ -103,15 +106,15 @@ export function CatalogEditor(){
       <div style={{display:"flex",flexWrap:"wrap",gap:6,alignItems:"center"}}>
         {cat[m.key].map(item=>(<span key={item} className="badge bd-gray" style={{display:"inline-flex",alignItems:"center",gap:6,padding:"6px 9px",textTransform:"none",fontSize:11}}>
           {item}
-          {item!=="Ninguno"&&<button onClick={()=>removeItem(m,item)} title="Quitar" style={{background:"none",border:"none",cursor:"pointer",color:"#E53935",fontWeight:700,padding:0,lineHeight:1,fontSize:13}}>✕</button>}
+          {!readOnly&&item!=="Ninguno"&&<button onClick={()=>removeItem(m,item)} title="Quitar" style={{background:"none",border:"none",cursor:"pointer",color:"#E53935",fontWeight:700,padding:0,lineHeight:1,fontSize:13}}>✕</button>}
         </span>))}
-        {adding===m.dbCat?(<span style={{display:"inline-flex",gap:4,alignItems:"center"}}>
+        {!readOnly&&(adding===m.dbCat?(<span style={{display:"inline-flex",gap:4,alignItems:"center"}}>
           <input className="inp" autoFocus value={newVal} onChange={e=>setNewVal(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")addItem(m);if(e.key==="Escape"){setAdding(null);setNewVal("");}}} placeholder="Nuevo..." style={{width:140,minHeight:34,fontSize:12}}/>
           <button className="btn btn-ok btn-sm" onClick={()=>addItem(m)} disabled={busy}>✓</button>
           <button className="btn btn-g btn-sm" onClick={()=>{setAdding(null);setNewVal("");}}>✕</button>
         </span>):(
           <button className="btn btn-s btn-sm" onClick={()=>{setAdding(m.dbCat);setNewVal("");}}>+ Agregar</button>
-        )}
+        ))}
       </div>
     </div>))}
   </div>);
@@ -119,20 +122,22 @@ export function CatalogEditor(){
 
 // ── ADMINS PAGE ──
 export function AdminsPage(){
+  const{readOnly}=usePermissions();
   const[admins,setAdmins]=useLS("jh_admins_v3",[]);
   const[showAdd,setShowAdd]=useState(false);
   const[form,setForm]=useState({name:"",username:"",password:""});
   const[err,setErr]=useState("");
 
   function add(){
+    if(readOnly)return;
     if(!form.name||!form.username||!form.password){setErr("Todos los campos son requeridos");return}
     if(form.username==="johel"||admins.some(a=>a.username===form.username)){setErr("Ese usuario ya existe");return}
     setAdmins([...admins,{id:genId(),...form,role:"trainer"}]);setForm({name:"",username:"",password:""});setErr("");setShowAdd(false);
   }
-  function del(id){if(!confirm("¿Eliminar administrador?"))return;setAdmins(admins.filter(a=>a.id!==id))}
+  function del(id){if(readOnly)return;if(!confirm("¿Eliminar administrador?"))return;setAdmins(admins.filter(a=>a.id!==id))}
 
   return(<div>
-    <div className="ph"><div><div className="pt">Administradores</div><div className="ps">Perfiles con acceso de entrenador</div></div><button className="btn btn-p" onClick={()=>setShowAdd(true)}>+ Nuevo admin</button></div>
+    <div className="ph"><div><div className="pt">Administradores</div><div className="ps">Perfiles con acceso de entrenador</div></div>{!readOnly&&<button className="btn btn-p" onClick={()=>setShowAdd(true)}>+ Nuevo admin</button>}</div>
     <div className="card" style={{padding:0}}>
       <div className="tbl-wrap"><table className="tbl">
         <thead><tr><th>Nombre</th><th>Usuario</th><th>Rol</th><th></th></tr></thead>
@@ -163,6 +168,7 @@ export function AdminsPage(){
 // ── PAYMENT MODULE ──
 // Fuente de verdad: tabla `payments` (prop allPayments + setPayments), NO client.payments.
 export function PaymentModule({client,setClient,payments:allPayments=[],setPayments}){
+  const{readOnly}=usePermissions();
   const[showPay,setShowPay]=useState(false);
   const[editingPay,setEditingPay]=useState(null);
   const[period,setPeriod]=useState(1);
@@ -200,6 +206,7 @@ export function PaymentModule({client,setClient,payments:allPayments=[],setPayme
   }
 
   async function savePayment(){
+    if(readOnly){setToast({msg:"Modo demostración: solo lectura",type:"err"});return;}
     // Guardado en dos pasos con rollback: primero la tabla payments, luego el plan.
     const prevClient=client;
     let paid=false;
@@ -239,6 +246,7 @@ export function PaymentModule({client,setClient,payments:allPayments=[],setPayme
   }
 
   async function delPayment(id){
+    if(readOnly)return;
     if(!confirm("¿Eliminar este pago?"))return;
     const prevClient=client;
     let removed=false;
@@ -270,7 +278,7 @@ export function PaymentModule({client,setClient,payments:allPayments=[],setPayme
         {dl!==null&&!client.plan?.paused&&<span style={{fontSize:11,color:"#6B7A99",marginLeft:8}}>{dl<0?`Venció hace ${Math.abs(dl)} días`:`${dl} días restantes`}</span>}
         {client.plan?.paused&&<span style={{fontSize:11,color:"#F57C00",marginLeft:8}}>Plan pausado</span>}
       </div>
-      <button className="btn btn-ok btn-sm" onClick={openNew}>💰 Registrar pago</button>
+      {!readOnly&&<button className="btn btn-ok btn-sm" onClick={openNew}>💰 Registrar pago</button>}
     </div>
 
     {payments.length>0&&<div>
@@ -318,11 +326,13 @@ export function PaymentModule({client,setClient,payments:allPayments=[],setPayme
 // ── PLAN EDITOR ──
 export function PlanEditor({client,onSave}){
   const cat=useCatalogs();
+  const{readOnly}=usePermissions();
   const[form,setForm]=useState(()=>({type:"Base",modality:"En Estudio",format:"Individual",startDate:"",endDate:"",price:"",notes:"",paused:false,pausedAt:null,...(client.plan||{})}));
   const[toast,setToast]=useState(null);
   const[saving,wrap]=useSaving();
 
   async function handleSave(){
+    if(readOnly){setToast({msg:"Modo demostración: solo lectura",type:"err"});return;}
     try{
       await onSave(form);
       setToast({msg:"Plan guardado correctamente",type:"ok"});
@@ -380,6 +390,7 @@ export function PlanEditor({client,onSave}){
     </div>
     <div className="fg"><label>Notas</label><input className="inp" value={form.notes||""} onChange={e=>setForm({...form,notes:e.target.value})} placeholder="Descuento, acuerdo especial..."/></div>
 
+    {readOnly?<div style={{borderTop:"1px solid #DDE4F0",paddingTop:12,marginTop:4,fontSize:12,color:"#7B1FA2"}}>👀 Modo demostración — solo lectura.</div>:
     <div style={{borderTop:"1px solid #DDE4F0",paddingTop:12,marginTop:4,display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
       <SaveBtn onClick={()=>wrap(handleSave)} saving={saving}>💾 Guardar</SaveBtn>
       <button
@@ -390,12 +401,13 @@ export function PlanEditor({client,onSave}){
         {form.paused?"▶ Reactivar plan":"⏸ Pausar plan"}
       </button>
       {form.paused&&<span style={{fontSize:11,color:"#6B7A99",fontStyle:"italic"}}>Al reactivar se añaden {daysPausedSoFar}d a la fecha de vencimiento</span>}
-    </div>
+    </div>}
   </div>);
 }
 
 // ── MEASUREMENTS ──
 export function MeasurementsTab({client,measurements,setMeasurements}){
+  const{readOnly}=usePermissions();
   const blankForm={date:new Date().toISOString().split("T")[0],...Object.fromEntries(MEASUREMENT_FIELDS.map(f=>[f.key,""]))};
   const[showAdd,setShowAdd]=useState(false);
   const[editingM,setEditingM]=useState(null);
@@ -409,6 +421,7 @@ export function MeasurementsTab({client,measurements,setMeasurements}){
   function openAdd(){setMForm(blankForm);setEditingM(null);setShowAdd(true)}
   function openEdit(m){setMForm({date:m.date,...Object.fromEntries(MEASUREMENT_FIELDS.map(f=>[f.key,m[f.key]||""]))});setEditingM(m.id);setShowAdd(true)}
   async function save(){
+    if(readOnly){setToast({msg:"Modo demostración: solo lectura",type:"err"});return;}
     try{
       if(editingM){await setMeasurements(measurements.map(m=>m.id===editingM?{...m,...mForm}:m));}
       else{await setMeasurements([...measurements,{id:genId(),clientId:client.id,...mForm}]);}
@@ -417,6 +430,7 @@ export function MeasurementsTab({client,measurements,setMeasurements}){
     }catch(e){console.error(e);setToast({msg:ERR,type:"err"});}
   }
   async function del(id){
+    if(readOnly)return;
     if(!confirm("¿Eliminar medición?"))return;
     try{await setMeasurements(measurements.filter(m=>m.id!==id));setToast({msg:"Medición eliminada",type:"ok"});}
     catch(e){console.error(e);setToast({msg:ERR,type:"err"});}
@@ -426,7 +440,7 @@ export function MeasurementsTab({client,measurements,setMeasurements}){
     {toast&&<Toast msg={toast.msg} type={toast.type} onDone={()=>setToast(null)}/>}
     <div className="sa">
       <div style={{fontWeight:700,fontSize:13}}>Última medición{latest?` — ${fmtDate(latest.date)}`:""}</div>
-      <button className="btn btn-p btn-sm" onClick={openAdd}>+ Registrar</button>
+      {!readOnly&&<button className="btn btn-p btn-sm" onClick={openAdd}>+ Registrar</button>}
     </div>
     {latest?(<div className="m-grid">{MEASUREMENT_FIELDS.map(f=>{const v=latest[f.key];return v?(<div key={f.key} className="m-card"><div className="m-lbl">{f.label}</div><div className="m-val">{v}<span className="m-unit"> {f.unit}</span></div></div>):null;})}</div>):<div className="empty"><div className="ico">📊</div><p>Sin mediciones</p></div>}
     {clientMs.length>1&&<div style={{marginTop:14}}>
@@ -480,11 +494,13 @@ export function MultiChart({clientMs}){
 }
 
 export function HistoryTab({client,measurements,setMeasurements}){
+  const{readOnly}=usePermissions();
   const clientMs=measurements.filter(m=>m.clientId===client.id).sort((a,b)=>new Date(a.date)-new Date(b.date));
   const clientMsDesc=[...clientMs].reverse();
   const[toast,setToast]=useState(null);
   const ERR="Hubo un problema al guardar. Intentá de nuevo en unos minutos.";
   async function del(id){
+    if(readOnly)return;
     if(!confirm("¿Eliminar?"))return;
     try{await setMeasurements(measurements.filter(m=>m.id!==id));setToast({msg:"Registro eliminado",type:"ok"});}
     catch(e){console.error(e);setToast({msg:ERR,type:"err"});}
@@ -564,6 +580,7 @@ function EditClientModal({cForm,setCForm,onSave,onClose,saving=false}){
 
 // ── CLIENT DETAIL ──
 export function ClientDetail({client,setClient,measurements,setMeasurements,payments=[],setPayments,workoutSessions=[],setWorkoutSessions,routines,onBack,onDelete,deleteConfirm,setDeleteConfirm,doDelete}){
+  const{readOnly}=usePermissions();
   const[tab,setTab]=useState("info");
   const[showEditInfo,setShowEditInfo]=useState(false);
   const[cForm,setCForm]=useState({...client});
@@ -574,6 +591,7 @@ export function ClientDetail({client,setClient,measurements,setMeasurements,paym
   const[disableConfirm,setDisableConfirm]=useState(false);
 
   async function saveInfo(){
+    if(readOnly){setToast({msg:"Modo demostración: solo lectura",type:"err"});return;}
     try{
       let updated={...cForm};
       // Si se generó contraseña nueva, hashearla
@@ -587,9 +605,11 @@ export function ClientDetail({client,setClient,measurements,setMeasurements,paym
     }catch(e){console.error(e);setToast({msg:ERR,type:"err"});}
   }
   async function savePlan(plan){
+    if(readOnly)return;
     await setClient({...client,plan});
   }
   async function doToggleDisabled(){
+    if(readOnly)return;
     const next=!client.disabled;
     try{
       await setClient({...client,disabled:next});
@@ -606,12 +626,12 @@ export function ClientDetail({client,setClient,measurements,setMeasurements,paym
     {toast&&<Toast msg={toast.msg} type={toast.type} onDone={()=>setToast(null)}/>}
     <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
       <button className="back-btn" style={{margin:0}} onClick={onBack}>← Volver</button>
-      <div style={{marginLeft:"auto",display:"flex",gap:6}}>
+      {!readOnly&&<div style={{marginLeft:"auto",display:"flex",gap:6}}>
         <button className={`btn btn-sm ${client.disabled?"btn-ok":"btn-w"}`} onClick={()=>setDisableConfirm(true)}>
           {client.disabled?"✅ Habilitar":"🚫 Deshabilitar"}
         </button>
         <button className="btn btn-d btn-sm" onClick={onDelete}>🗑 Eliminar</button>
-      </div>
+      </div>}
     </div>
     <div className="ph">
       <div style={{display:"flex",alignItems:"center",gap:12}}>
@@ -661,7 +681,7 @@ export function ClientDetail({client,setClient,measurements,setMeasurements,paym
     </div>
 
     {tab==="info"&&(<div className="card">
-      <div className="sa"><div style={{fontWeight:700,fontSize:13}}>Datos personales</div><button className="btn btn-s btn-sm" onClick={()=>{setCForm({...client});setShowEditInfo(true)}}>✏️ Editar</button></div>
+      <div className="sa"><div style={{fontWeight:700,fontSize:13}}>Datos personales</div>{!readOnly&&<button className="btn btn-s btn-sm" onClick={()=>{setCForm({...client});setShowEditInfo(true)}}>✏️ Editar</button>}</div>
       <div className="fr2">{[["Nombre",client.name],["Usuario","@"+client.username],["Cédula",client.cedula],["Teléfono",client.phone],["Correo",client.email],["Fecha nac.",fmtDate(client.dob)],["Edad",age!==null?(age+" años"):"—"],["Estatura",client.height?(client.height+" cm"):"—"]].map(([k,v])=>(<div key={k} style={{padding:"8px 0",borderBottom:"1px solid #DDE4F0"}}><div style={{fontSize:10,color:"#6B7A99",textTransform:"uppercase",letterSpacing:1}}>{k}</div><div style={{fontSize:13,fontWeight:600,marginTop:2}}>{v||"—"}</div></div>))}</div>
       {client.notes&&<div style={{marginTop:10,padding:10,background:"#F8F9FF",borderRadius:7,fontSize:12,color:"#6B7A99"}}>{client.notes}</div>}
       <div style={{marginTop:10,fontSize:12,color:"#6B7A99"}}>Rutina: <strong style={{color:"#0B1F4B"}}>{routine?routine.title:"Sin rutina"}</strong></div>
@@ -669,7 +689,7 @@ export function ClientDetail({client,setClient,measurements,setMeasurements,paym
 
     {tab==="plan"&&<PlanEditor client={client} onSave={savePlan}/>}
     {tab==="payments"&&<div className="card"><PaymentModule client={client} setClient={setClient} payments={payments} setPayments={setPayments}/></div>}
-    {tab==="workouts"&&<WorkoutHistory sessions={workoutSessions.filter(s=>s.userId===client.id)} onDeleteSession={setWorkoutSessions?async id=>{
+    {tab==="workouts"&&<WorkoutHistory sessions={workoutSessions.filter(s=>s.userId===client.id)} onDeleteSession={(setWorkoutSessions&&!readOnly)?async id=>{
       if(!confirm("¿Eliminar este entrenamiento del historial?"))return;
       try{await setWorkoutSessions(workoutSessions.filter(s=>s.id!==id));setToast({msg:"Entrenamiento eliminado",type:"ok"});}
       catch(e){console.error(e);setToast({msg:ERR,type:"err"});}
@@ -708,6 +728,7 @@ export function ClientsPage({users,setUsers,routines,measurements,setMeasurement
   }
 
   async function addClient(){
+    if(readOnly)return; // demo_viewer: solo lectura
     if(!form.name||!form.username||!form.password){setErr("Nombre, usuario y contraseña son requeridos. Generá una contraseña primero.");return}
     if(users.some(u=>u.username===form.username)){setErr("Ese usuario ya existe");return}
     try{
@@ -719,9 +740,11 @@ export function ClientsPage({users,setUsers,routines,measurements,setMeasurement
     }catch(e){console.error(e);setErr(ERR);}
   }
 
-  function updateClient(u){setUsers(users.map(x=>x.id===u.id?u:x));setDetail(u)}
+  // Chokepoint de persistencia de ClientDetail (info/plan/deshabilitar): bloquea demo.
+  function updateClient(u){if(readOnly)return;setUsers(users.map(x=>x.id===u.id?u:x));setDetail(u)}
   function confirmDelete(client){setDeleteConfirm(client)}
   async function doDelete(){
+    if(readOnly)return; // demo_viewer: solo lectura
     if(!deleteConfirm)return;
     try{
       await setUsers(users.filter(u=>u.id!==deleteConfirm.id));
@@ -838,6 +861,7 @@ export function ExercisesPage({exercises,setExercises}){
   function openAdd(){setForm({name:"",videoUrl:"",muscleGroup:"Piernas",type:tab,equipment:"Ninguno"});setEditing(null);setShowAdd(true)}
   function openEdit(ex){setForm({name:ex.name,videoUrl:ex.videoUrl||"",muscleGroup:ex.muscleGroup,type:ex.type,equipment:ex.equipment||"Ninguno"});setEditing(ex);setShowAdd(true)}
   async function save(){
+    if(readOnly){setToast({msg:"Modo demostración: solo lectura",type:"err"});return;}
     if(!form.name.trim())return;
     try{
       if(editing)await setExercises(exercises.map(e=>e.id===editing.id?{...e,...form}:e));
@@ -847,6 +871,7 @@ export function ExercisesPage({exercises,setExercises}){
     }catch(e){console.error(e);setToast({msg:ERR,type:"err"});}
   }
   async function del(id){
+    if(readOnly)return;
     if(!confirm("¿Eliminar ejercicio?"))return;
     try{
       await setExercises(exercises.filter(e=>e.id!==id));
@@ -913,6 +938,7 @@ function propagateExerciseData(rt){
 
 export function RoutineEditor({routine,exercises,users,onSave,onBack,saving=false}){
   const cat=useCatalogs();
+  const{readOnly}=usePermissions();
   const blank={id:genId(),userId:"",title:"Nueva Rutina",daysPerWeek:0,note:"",days:[],warmupStretchIds:[],cooldownStretchIds:[],assignedUserIds:[]};
   const[rt,setRt]=useState(()=>{
     if(!routine)return blank;
@@ -938,6 +964,7 @@ export function RoutineEditor({routine,exercises,users,onSave,onBack,saving=fals
     if(!wasActive)setRt(r=>{const s=new Set(r.assignedUserIds||[]);s.add(uid);return{...r,assignedUserIds:[...s]};}); // activa implica asignada
   }
   function saveRoutine(){
+    if(readOnly)return; // demo_viewer: solo lectura
     const next=propagateExerciseData(rt);
     setRt(next);
     onSave(next,[...activeIds]);
@@ -965,7 +992,7 @@ export function RoutineEditor({routine,exercises,users,onSave,onBack,saving=fals
 
   return(<div>
     <button className="back-btn" onClick={onBack}>← Volver a Rutinas</button>
-    <div className="ph"><div><div className="pt">{routine?"Editar Rutina":"Nueva Rutina"}</div></div><SaveBtn className="btn btn-ok" onClick={saveRoutine} saving={saving}>💾 Guardar</SaveBtn></div>
+    <div className="ph"><div><div className="pt">{routine?"Editar Rutina":"Nueva Rutina"}</div></div>{readOnly?<span className="badge" style={{background:"#F3E5F5",color:"#7B1FA2",border:"1px solid #E1BEE7"}}>👀 Solo lectura</span>:<SaveBtn className="btn btn-ok" onClick={saveRoutine} saving={saving}>💾 Guardar</SaveBtn>}</div>
     <div className="card" style={{marginBottom:12}}>
       <div className="fg"><label>Título</label><input className="inp" value={rt.title} onChange={e=>setRt(r=>({...r,title:e.target.value}))}/></div>
       <div className="fg">
@@ -1033,8 +1060,8 @@ export function RoutineEditor({routine,exercises,users,onSave,onBack,saving=fals
     </>}
     {rt.days.length===0&&<div className="card"><div className="empty"><div className="ico">📅</div><p>Selecciona los días por semana arriba</p></div></div>}
     <div style={{display:"flex",gap:8,marginTop:14,paddingTop:14,borderTop:"1px solid #DDE4F0"}}>
-      <SaveBtn className="btn btn-ok" onClick={saveRoutine} saving={saving}>💾 Guardar rutina</SaveBtn>
-      <button className="btn btn-g" onClick={onBack}>Cancelar</button>
+      {!readOnly&&<SaveBtn className="btn btn-ok" onClick={saveRoutine} saving={saving}>💾 Guardar rutina</SaveBtn>}
+      <button className="btn btn-g" onClick={onBack}>{readOnly?"← Volver":"Cancelar"}</button>
     </div>
     {exPicker&&<ExercisePicker exercises={exercises} onPick={ex=>addEx(exPicker.dayIdx,exPicker.gIdx,ex)} onClose={()=>setExPicker(null)}/>}
     {strPicker&&<StretchPicker exercises={exercises} selected={strPicker==="warmup"?warmupIds:cooldownIds} onToggle={id=>toggleStretch(strPicker,id)} onClose={()=>setStrPicker(null)}/>}
@@ -1051,6 +1078,7 @@ export function RoutinesPage({routines,setRoutines,users,setUsers,exercises,save
   const ERR="Hubo un problema al guardar. Intentá de nuevo en unos minutos.";
 
   async function saveRoutine(rt,activeUserIds=[]){
+    if(readOnly)return; // demo_viewer: solo lectura
     const exists=routines.find(r=>r.id===rt.id);
     const now=new Date().toISOString();
     // "primary" = primer cliente asignado. Se guarda en routines.user_id para que la
@@ -1077,18 +1105,20 @@ export function RoutinesPage({routines,setRoutines,users,setUsers,exercises,save
     }catch(e){console.error(e);setToast({msg:ERR,type:"err"});}
   }
   async function del(id){
+    if(readOnly)return;
     if(!confirm("¿Eliminar rutina?"))return;
     try{await setRoutines(routines.filter(r=>r.id!==id));setToast({msg:"Rutina eliminada",type:"ok"});}
     catch(e){console.error(e);setToast({msg:ERR,type:"err"});}
   }
   async function duplicate(rt){
+    if(readOnly)return;
     const now=new Date().toISOString();
     const newRt={...JSON.parse(JSON.stringify(rt)),id:genId(),title:rt.title+" (copia)",createdAt:now,updatedAt:now,userId:"",assignedUserIds:[]};
     try{await setRoutines([...routines,newRt]);setToast({msg:"Rutina duplicada (sin asignar)",type:"ok"});}
     catch(e){console.error(e);setToast({msg:ERR,type:"err"});}
   }
   async function setActiveFor(rt,userId){
-    if(!userId)return;
+    if(readOnly||!userId)return;
     try{await setUsers(users.map(u=>u.id===userId?{...u,activeRoutineId:rt.id}:u));setToast({msg:"Rutina activa actualizada",type:"ok"});}
     catch(e){console.error(e);setToast({msg:ERR,type:"err"});}
   }

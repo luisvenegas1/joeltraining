@@ -22,6 +22,12 @@ export function can(role, action) {
   return !!CAP[role]?.has(action);
 }
 
+// Regla CENTRAL de "puede mutar" (crear/editar/eliminar/asignar/cambiar estado).
+// Solo owner y trainer. demo_viewer y client NO mutan datos operativos del panel.
+export function canMutate(role) {
+  return role === ROLE.OWNER || role === ROLE.TRAINER;
+}
+
 // Atajos usados por la UI del entrenador.
 export const isReadOnly = (role) => role === ROLE.DEMO;
 export const canDelete = (role) => can(role, "delete");

@@ -174,7 +174,7 @@ export function LoginPage({onLogin,users}){
     <AppFooter/>
   </div>);
 }
-export function Sidebar({user,page,setPage,onLogout}){
+export function Sidebar({user,page,setPage,onLogout,isSuperadmin=false}){
   const brand=useBranding();
   const isT=user.role==="trainer";
   const navs=isT?[
@@ -196,6 +196,12 @@ export function Sidebar({user,page,setPage,onLogout}){
       <nav>
         {isT&&<div className="nav-sec">Menú</div>}
         {navs.map(n=>(<div key={n.id} className={`nav-item${page===n.id?" active":""}`} onClick={()=>setPage(n.id)}><span className="nav-icon">{n.icon}</span><span>{n.label}</span></div>))}
+        {/* Acceso al Panel de Plataforma: SOLO para el superusuario (platform_admins).
+            El acceso real se re-valida en /platform contra platform_admins. */}
+        {isSuperadmin&&(<>
+          <div className="nav-sec">Plataforma</div>
+          <div className="nav-item" onClick={()=>{window.location.href="/platform";}}><span className="nav-icon">🛰️</span><span>Plataforma</span></div>
+        </>)}
       </nav>
       {/* Mobile logout button - visible only on mobile */}
       <button className="mob-logout" onClick={onLogout} title="Cerrar sesión">

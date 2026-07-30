@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import './index.css'
 import App from './App.jsx'
+import PlatformApp from './platform/PlatformApp.jsx'
 import { TenantProvider } from './tenant/TenantProvider.jsx'
 
 // TenantProvider en modo legacy (por defecto) provee branding Johel y NO hace
@@ -13,6 +14,9 @@ createRoot(document.getElementById('root')).render(
     <BrowserRouter>
       <TenantProvider>
         <Routes>
+          {/* Panel de Plataforma: ruta global separada del tenant. El acceso real
+              se valida contra platform_admins dentro de PlatformApp. */}
+          <Route path="/platform/*" element={<PlatformApp />} />
           <Route path="*" element={<App />} />
         </Routes>
       </TenantProvider>

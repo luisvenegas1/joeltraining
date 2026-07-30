@@ -1,5 +1,17 @@
 import { describe, it, expect } from "vitest";
-import { can, isReadOnly, canDelete, canManageMembers, ROLE } from "./permissions";
+import { can, isReadOnly, canDelete, canManageMembers, canMutate, ROLE } from "./permissions";
+
+describe("canMutate — quién puede escribir en el panel", () => {
+  it("owner y trainer pueden mutar", () => {
+    expect(canMutate(ROLE.OWNER)).toBe(true);
+    expect(canMutate(ROLE.TRAINER)).toBe(true);
+  });
+  it("demo_viewer y client NO pueden mutar", () => {
+    expect(canMutate(ROLE.DEMO)).toBe(false);
+    expect(canMutate(ROLE.CLIENT)).toBe(false);
+    expect(canMutate("cualquier")).toBe(false);
+  });
+});
 
 describe("permissions — demo_viewer no destructivo", () => {
   it("demo_viewer solo lee", () => {

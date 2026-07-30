@@ -28,10 +28,18 @@ export async function signOut() {
 // Carga membresías (org + rol) del usuario autenticado. Con RLS activo, solo
 // devuelve las del propio usuario. La membresía se valida en la BASE, no en el
 // navegador.
+//
+// IMPORTANTE: filtra por el UUID del usuario Auth actual (`.eq("user_id", ...)`).
+// Con RLS APAGADO, sin este filtro se traerían las membresías de TODOS los usuarios
+// y `resolveAccess` podría darle a cualquiera un rol de owner/trainer del tenant.
+// La identidad se toma de la sesión (sb.auth.getUser), nunca de localStorage.
 export async function loadMemberships() {
+  const { data: u } = await sb.auth.getUser();
+  if (!u?.user) return [];
   const { data, error } = await sb
     .from("organization_members")
-    .select("organization_id, role, organizations(slug, name, status, tenant_type)");
+    .select("organization_id, role, organizations(slug, name, status, tenant_type)")
+    .eq("user_id", u.user.id);
   if (error) throw error;
   return (data || []).map((m) => ({
     organizationId: m.organization_id,

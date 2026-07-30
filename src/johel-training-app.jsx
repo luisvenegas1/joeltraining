@@ -137,7 +137,7 @@ function useAppData() {
 }
 
 // ── Shell autenticado (idéntico para ambos modos) ───────────────
-function MainApp({ currentUser, capabilityRole = "owner", onLogout, data }) {
+function MainApp({ currentUser, capabilityRole = "owner", onLogout, data, isSuperadmin = false }) {
   const [page, setPage] = useState(currentUser.role === "trainer" ? "dashboard" : "my-routine");
   const isT = currentUser.role === "trainer";
   const liveUser = isT ? currentUser : (data.users.find((u) => u.id === currentUser.id) || currentUser);
@@ -160,7 +160,7 @@ function MainApp({ currentUser, capabilityRole = "owner", onLogout, data }) {
       <PermissionsContext.Provider value={{ role: capabilityRole, readOnly }}>
         <style>{STYLES}</style>
         <div className="app">
-          <Sidebar user={liveUser} page={page} setPage={setPage} onLogout={onLogout} />
+          <Sidebar user={liveUser} page={page} setPage={setPage} onLogout={onLogout} isSuperadmin={isSuperadmin} />
           <main className="main">
             {readOnly && <DemoBanner />}
             {content}
@@ -218,7 +218,7 @@ function SupabaseApp() {
   if (auth.orgAccess === "billing") return (<><style>{STYLES}</style><BillingScreen subscription={auth.subscription} onLogout={auth.signOut} /></>);
   if (data.loading) return <LoadingScreen />;
   if (data.dbError) return <DbErrorScreen msg={data.dbError} />;
-  return <MainApp currentUser={auth.appUser} capabilityRole={auth.capabilityRole} onLogout={auth.signOut} data={data} />;
+  return <MainApp currentUser={auth.appUser} capabilityRole={auth.capabilityRole} onLogout={auth.signOut} data={data} isSuperadmin={auth.isSuperadmin} />;
 }
 
 export default function App() {
