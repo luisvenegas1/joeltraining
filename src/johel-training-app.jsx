@@ -17,7 +17,8 @@ import {
 } from "./johel-training.features";
 import { useTenant } from "./tenant/tenantContext";
 import { useSupabaseAuth } from "./auth/useSupabaseAuth";
-import { AuthLoading, SupabaseLogin, AuthErrorScreen, DemoBanner, SuspendedScreen, BillingScreen } from "./auth/AuthScreens";
+import { AuthLoading, SupabaseLogin, AuthErrorScreen, DemoBanner, SuspendedScreen, BillingScreen, SetNewPasswordScreen } from "./auth/AuthScreens";
+import { sb } from "./supabase";
 import { PermissionsContext } from "./auth/PermissionsContext";
 
 // Modo de autenticación. Por defecto LEGACY: la app se comporta EXACTAMENTE como
@@ -207,8 +208,20 @@ function SupabaseApp() {
   const { load } = data;
   const ready = auth.status === "ready";
 
+  // Recuperación de contraseña: al volver del enlace del correo, Supabase emite el
+  // evento PASSWORD_RECOVERY. Interceptamos para forzar fijar la nueva clave antes
+  // de continuar a la app.
+  const [recovery, setRecovery] = useState(false);
+  useEffect(() => {
+    const { data: sub } = sb.auth.onAuthStateChange((event) => {
+      if (event === "PASSWORD_RECOVERY") setRecovery(true);
+    });
+    return () => sub?.subscription?.unsubscribe();
+  }, []);
+
   useEffect(() => { if (ready) load(); }, [ready, load]);
 
+  if (recovery) return (<><style>{STYLES}</style><SetNewPasswordScreen onDone={() => { setRecovery(false); }} /></>);
   if (auth.status === "loading") return <AuthLoading />;
   if (auth.status === "anonymous") return (<><style>{STYLES}</style><SupabaseLogin onSubmit={auth.signIn} formError={auth.formError} /></>);
   if (!ready) return (<><style>{STYLES}</style><AuthErrorScreen kind={auth.status} slug={tenant?.slug} onLogout={auth.signOut} /></>);

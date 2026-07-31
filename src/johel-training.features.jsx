@@ -8,6 +8,7 @@ import { useCatalogs, CATALOG_META } from "./johel-training.catalogs";
 import { usePermissions } from "./auth/PermissionsContext";
 import { addMonths, calcAge, daysLeft, fmtDate, genId, getPlanStatus, getPlanStatusFromEndDate, initials, planColor, useLS, hashPassword, generatePassword, useSaving, weekKey, weekLabel, monthKey, monthLabel, dayKey, fmtDuration, convertWeight } from "./johel-training.utils";
 import { Modal, PasswordInput, Toast, VideoModal, ExercisePicker, StretchPicker, Logo, SaveBtn } from "./johel-training.ui";
+import { updateOwnPassword, resetClientPassword } from "./auth/authClient";
 
 // Bloquea el ingreso de valores negativos en inputs numéricos
 const preventNegKey=e=>{if(["-","e","E","+"].includes(e.key))e.preventDefault();};
@@ -594,14 +595,22 @@ export function ClientDetail({client,setClient,measurements,setMeasurements,paym
     if(readOnly){setToast({msg:"Modo demostración: solo lectura",type:"err"});return;}
     try{
       let updated={...cForm};
-      // Si se generó contraseña nueva, hashearla
-      if(updated._newPlainPwd){
-        updated.password=await hashPassword(updated._newPlainPwd);
-        delete updated._newPlainPwd;
-      } else {
-        delete updated._newPlainPwd;
+      // La contraseña de login vive en Supabase Auth, no en users.password. Si el
+      // entrenador generó una clave nueva, se aplica vía Edge Function segura.
+      const newPwd=updated._newPlainPwd;
+      delete updated._newPlainPwd;
+      await setClient({...updated}); // no tocamos updated.password (columna legacy)
+      if(newPwd){
+        const res=await resetClientPassword(client.id,newPwd);
+        if(!res.ok){
+          setShowEditInfo(false);
+          const msg=res.error==="client_no_auth"
+            ? "Este cliente aún no tiene cuenta de correo para iniciar sesión. Asignale un correo y creá su acceso primero."
+            : ("No se pudo cambiar la contraseña del cliente: "+(res.error||"intentá de nuevo."));
+          setToast({msg,type:"err"});return;
+        }
       }
-      await setClient({...updated});setShowEditInfo(false);setToast({msg:"Datos actualizados",type:"ok"});
+      setShowEditInfo(false);setToast({msg:newPwd?"Datos y contraseña actualizados":"Datos actualizados",type:"ok"});
     }catch(e){console.error(e);setToast({msg:ERR,type:"err"});}
   }
   async function savePlan(plan){
@@ -1690,10 +1699,18 @@ export function MyProfilePage({user,setUsers,users,measurements,workoutSessions=
   async function savePassword(){
     setPwdErr("");
     if(!pwdForm.nueva){setPwdErr("Ingresá una contraseña.");return;}
+    if(pwdForm.nueva.length<6){setPwdErr("La contraseña debe tener al menos 6 caracteres.");return;}
     if(pwdForm.nueva!==pwdForm.confirmar){setPwdErr("Las contraseñas no coinciden.");return;}
     try{
-      const hashed=await hashPassword(pwdForm.nueva);
-      await setUsers(users.map(u=>u.id===user.id?{...u,password:hashed}:u));
+      // Con Supabase Auth, la contraseña vive en Auth (no en users.password).
+      const res=await updateOwnPassword(pwdForm.nueva);
+      if(res.legacy){
+        // Modo legacy (sin sesión Auth): comportamiento viejo.
+        const hashed=await hashPassword(pwdForm.nueva);
+        await setUsers(users.map(u=>u.id===user.id?{...u,password:hashed}:u));
+      } else if(!res.ok){
+        setPwdErr("No se pudo actualizar: "+(res.error||"intentá de nuevo."));return;
+      }
       setShowChangePwd(false);setPwdForm({nueva:"",confirmar:""});
       setToast({msg:"Contraseña actualizada",type:"ok"});
     }catch(e){console.error(e);setToast({msg:ERR,type:"err"});}

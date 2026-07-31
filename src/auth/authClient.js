@@ -76,6 +76,48 @@ export async function loadIsSuperadmin() {
   return !!data;
 }
 
+// Cambia la contraseña del USUARIO ACTUAL (su propia sesión) vía Supabase Auth.
+// Devuelve { ok } o { ok:false, error } o { ok:false, legacy:true } si no hay
+// sesión Auth (modo legacy: el llamador debe usar el flujo viejo).
+export async function updateOwnPassword(newPassword) {
+  const { data: u } = await sb.auth.getUser();
+  if (!u?.user) return { ok: false, legacy: true };
+  const { error } = await sb.auth.updateUser({ password: newPassword });
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+// Envía el correo de "restablecer contraseña" de Supabase. redirectTo debe estar
+// en la lista de Redirect URLs permitidas del proyecto (Auth → URL Configuration).
+export async function sendPasswordReset(email, redirectTo) {
+  const { error } = await sb.auth.resetPasswordForEmail(
+    String(email || "").trim(),
+    redirectTo ? { redirectTo } : undefined,
+  );
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+// El ENTRENADOR resetea la contraseña de un cliente. Pasa por la Edge Function
+// segura (service_role): verifica que el llamador sea owner/trainer de la org del
+// cliente. El frontend NUNCA usa service_role.
+export async function resetClientPassword(clientId, newPassword) {
+  try {
+    const { data, error } = await sb.functions.invoke("reset-client-password", {
+      body: { client_id: clientId, new_password: newPassword },
+    });
+    if (error) {
+      let detail = error.message;
+      try { const b = await error.context?.json?.(); if (b?.error) detail = b.detail ? `${b.error}: ${b.detail}` : b.error; } catch { /* ignore */ }
+      return { ok: false, error: detail };
+    }
+    if (data?.error) return { ok: false, error: data.detail ? `${data.error}: ${data.detail}` : data.error };
+    return { ok: true, data };
+  } catch (e) {
+    return { ok: false, error: String(e?.message || e) };
+  }
+}
+
 // Cliente (users) vinculado al usuario Auth actual (o null), en formato app.
 // Bajo RLS, esta consulta devuelve SOLO la fila propia del cliente.
 export async function loadClientProfile() {

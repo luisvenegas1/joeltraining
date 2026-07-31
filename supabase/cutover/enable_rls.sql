@@ -59,6 +59,9 @@ alter table public.workout_logs         enable row level security;
 alter table public.catalogs             enable row level security;
 alter table public.organization_subscriptions enable row level security;
 alter table public.platform_admins      enable row level security;
+-- Tablas del Panel de Plataforma (policies solo-superadmin en 0019/0020).
+alter table public.platform_payments    enable row level security;
+alter table public.platform_audit_log   enable row level security;
 
 -- ROLLBACK (si algo sale mal tras activar): desactivar RLS puntualmente.
 --   alter table public.<tabla> disable row level security;

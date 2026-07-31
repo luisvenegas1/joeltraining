@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useBranding } from "../branding/BrandingContext";
+import { sendPasswordReset, updateOwnPassword } from "./authClient";
 
 // Spinner de carga de sesión.
 export function AuthLoading({ label = "Verificando sesión…" }) {
@@ -18,6 +19,10 @@ export function SupabaseLogin({ onSubmit, formError }) {
   const [email, setEmail] = useState("");
   const [pw, setPw] = useState("");
   const [busy, setBusy] = useState(false);
+  const [forgot, setForgot] = useState(false); // vista "olvidé mi contraseña"
+  const [resetMsg, setResetMsg] = useState(null);
+  const [resetErr, setResetErr] = useState(null);
+
   async function submit(e) {
     e.preventDefault();
     setBusy(true);
@@ -27,6 +32,22 @@ export function SupabaseLogin({ onSubmit, formError }) {
       setBusy(false);
     }
   }
+
+  async function sendReset(e) {
+    e.preventDefault();
+    setResetMsg(null); setResetErr(null);
+    if (!email.trim()) { setResetErr("Escribí tu correo primero."); return; }
+    setBusy(true);
+    try {
+      // Vuelve a esta misma dirección; Supabase abre la sesión de recuperación.
+      const res = await sendPasswordReset(email.trim(), window.location.origin + "/");
+      if (res.ok) setResetMsg("Si el correo existe, te enviamos un enlace para restablecer tu contraseña. Revisá tu bandeja (y spam).");
+      else setResetErr("No se pudo enviar: " + (res.error || "intentá de nuevo."));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="login-page">
       <div className="login-box">
@@ -35,12 +56,75 @@ export function SupabaseLogin({ onSubmit, formError }) {
           <div className="login-brand">{brand.displayName}</div>
           <div className="login-sub">{brand.tagline}</div>
         </div>
-        {formError && <div className="err">⚠ {formError}</div>}
-        <form onSubmit={submit}>
-          <div className="fg"><label>Correo</label><input className="inp" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="tu@correo.com" autoComplete="username" /></div>
-          <div className="fg"><label>Contraseña</label><input className="inp" type="password" value={pw} onChange={(e) => setPw(e.target.value)} autoComplete="current-password" /></div>
-          <button className="btn btn-p btn-full" type="submit" style={{ marginTop: 8 }} disabled={busy}>{busy ? "Ingresando…" : "Ingresar →"}</button>
-        </form>
+        {!forgot && (<>
+          {formError && <div className="err">⚠ {formError}</div>}
+          <form onSubmit={submit}>
+            <div className="fg"><label>Correo</label><input className="inp" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="tu@correo.com" autoComplete="username" /></div>
+            <div className="fg"><label>Contraseña</label><input className="inp" type="password" value={pw} onChange={(e) => setPw(e.target.value)} autoComplete="current-password" /></div>
+            <button className="btn btn-p btn-full" type="submit" style={{ marginTop: 8 }} disabled={busy}>{busy ? "Ingresando…" : "Ingresar →"}</button>
+          </form>
+          <button type="button" onClick={() => { setForgot(true); setResetMsg(null); setResetErr(null); }} style={{ background: "none", border: "none", color: "#1A5DC8", fontSize: 12, fontWeight: 700, cursor: "pointer", marginTop: 12, display: "block", width: "100%", textAlign: "center" }}>¿Olvidaste tu contraseña?</button>
+        </>)}
+        {forgot && (<>
+          <div style={{ fontSize: 13, color: "#6B7A99", marginBottom: 10 }}>Escribí tu correo y te enviamos un enlace para crear una nueva contraseña.</div>
+          {resetMsg && <div style={{ background: "#E8F5E9", border: "1px solid #A5D6A7", color: "#2E7D32", borderRadius: 8, padding: "8px 12px", fontSize: 12, marginBottom: 10 }}>{resetMsg}</div>}
+          {resetErr && <div className="err">⚠ {resetErr}</div>}
+          <form onSubmit={sendReset}>
+            <div className="fg"><label>Correo</label><input className="inp" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="tu@correo.com" autoComplete="username" /></div>
+            <button className="btn btn-p btn-full" type="submit" style={{ marginTop: 8 }} disabled={busy}>{busy ? "Enviando…" : "Enviar enlace"}</button>
+          </form>
+          <button type="button" onClick={() => setForgot(false)} style={{ background: "none", border: "none", color: "#6B7A99", fontSize: 12, fontWeight: 700, cursor: "pointer", marginTop: 12, display: "block", width: "100%", textAlign: "center" }}>← Volver al inicio de sesión</button>
+        </>)}
+      </div>
+    </div>
+  );
+}
+
+// Pantalla para FIJAR una nueva contraseña tras el enlace de recuperación
+// (evento PASSWORD_RECOVERY de Supabase). El usuario ya tiene una sesión temporal.
+export function SetNewPasswordScreen({ onDone }) {
+  const brand = useBranding();
+  const [pw, setPw] = useState("");
+  const [pw2, setPw2] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(null);
+  const [ok, setOk] = useState(false);
+
+  async function submit(e) {
+    e.preventDefault();
+    setErr(null);
+    if (pw.length < 6) { setErr("La contraseña debe tener al menos 6 caracteres."); return; }
+    if (pw !== pw2) { setErr("Las contraseñas no coinciden."); return; }
+    setBusy(true);
+    try {
+      const res = await updateOwnPassword(pw);
+      if (!res.ok) { setErr("No se pudo actualizar: " + (res.error || "el enlace pudo expirar.")); return; }
+      setOk(true);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="login-page">
+      <div className="login-box">
+        <div className="login-logo">
+          {brand.logoUrl && <img src={brand.logoUrl} alt={brand.displayName} style={{ width: 100, height: 100, objectFit: "contain", display: "block", margin: "0 auto 10px" }} />}
+          <div className="login-brand">Nueva contraseña</div>
+        </div>
+        {ok ? (
+          <>
+            <div style={{ background: "#E8F5E9", border: "1px solid #A5D6A7", color: "#2E7D32", borderRadius: 8, padding: "10px 12px", fontSize: 13, marginBottom: 12 }}>✅ Tu contraseña quedó actualizada.</div>
+            <button className="btn btn-p btn-full" onClick={onDone}>Continuar →</button>
+          </>
+        ) : (
+          <form onSubmit={submit}>
+            {err && <div className="err">⚠ {err}</div>}
+            <div className="fg"><label>Nueva contraseña</label><input className="inp" type="password" value={pw} onChange={(e) => setPw(e.target.value)} autoComplete="new-password" /></div>
+            <div className="fg"><label>Confirmar contraseña</label><input className="inp" type="password" value={pw2} onChange={(e) => setPw2(e.target.value)} autoComplete="new-password" /></div>
+            <button className="btn btn-p btn-full" type="submit" style={{ marginTop: 8 }} disabled={busy}>{busy ? "Guardando…" : "Guardar contraseña"}</button>
+          </form>
+        )}
       </div>
     </div>
   );
