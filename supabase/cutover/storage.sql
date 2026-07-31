@@ -26,9 +26,11 @@ create policy logos_read on storage.objects for select
 drop policy if exists logos_write on storage.objects;
 create policy logos_write on storage.objects for all to authenticated
   using (bucket_id = 'org-logos'
-         and public.has_org_role(((storage.foldername(name))[1])::uuid, array['owner']))
+         and (public.is_superadmin()
+              or public.has_org_role(((storage.foldername(name))[1])::uuid, array['owner'])))
   with check (bucket_id = 'org-logos'
-         and public.has_org_role(((storage.foldername(name))[1])::uuid, array['owner']));
+         and (public.is_superadmin()
+              or public.has_org_role(((storage.foldername(name))[1])::uuid, array['owner'])));
 
 -- ── trainer-photos: lectura pública, escritura owner/trainer de la org ──
 drop policy if exists trainerphotos_read on storage.objects;

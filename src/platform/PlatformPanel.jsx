@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { loadPlatformData, invokePlatform, existingSlugsOf, paymentsForOrg, auditForOrg } from "./platformApi";
+import { uploadLogo } from "../storage/storage";
 import {
   validateNewOrg, validatePayment, bucketOrganizations, expiringSubscriptions,
   statusLabel, canSuspendOrg, SUB_STATUSES, PAYMENT_METHODS,
@@ -24,6 +25,49 @@ function Stat({ label, value, color }) {
     <div style={{ ...card, flex: "1 1 130px", minWidth: 130 }}>
       <div style={{ fontSize: 28, fontWeight: 900, color: color || C.ink }}>{value}</div>
       <div style={{ fontSize: 12, color: C.muted, fontWeight: 700 }}>{label}</div>
+    </div>
+  );
+}
+
+// Campo de logo: permite SUBIR un archivo (o pegar una URL). Si `orgId` existe,
+// sube de inmediato al bucket público `org-logos` y devuelve la URL pública. Si no
+// (alta de organización), guarda el File para subirlo después de crear la org y
+// muestra una vista previa local.
+function LogoField({ label = "Logo", url, onUrl, onFile, orgId, previewBg = C.navy }) {
+  const inputRef = useRef(null);
+  const [uploading, setUploading] = useState(false);
+  const [err, setErr] = useState(null);
+  const isBlob = typeof url === "string" && url.startsWith("blob:");
+
+  async function pick(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setErr(null);
+    if (!file.type.startsWith("image/")) { setErr("Elegí un archivo de imagen."); return; }
+    if (file.size > 3 * 1024 * 1024) { setErr("La imagen no debe superar 3 MB."); return; }
+    if (orgId) {
+      setUploading(true);
+      try { onUrl(await uploadLogo(orgId, file)); }
+      catch (e2) { setErr("No se pudo subir: " + (e2?.message || e2)); }
+      finally { setUploading(false); }
+    } else {
+      onUrl(URL.createObjectURL(file)); // vista previa local
+      onFile?.(file);                    // se sube tras crear la org
+    }
+  }
+
+  return (
+    <div className="fg" style={{ marginBottom: 10 }}>
+      <label style={{ fontSize: 12, color: C.muted, fontWeight: 700 }}>{label}</label>
+      <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+        <div style={{ width: 56, height: 56, borderRadius: 8, background: previewBg, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", flexShrink: 0 }}>
+          {url ? <img src={url} alt="logo" style={{ width: "100%", height: "100%", objectFit: "contain" }} /> : <span style={{ fontSize: 22 }}>🏋️</span>}
+        </div>
+        <input ref={inputRef} type="file" accept="image/*" onChange={pick} style={{ display: "none" }} />
+        <button type="button" className="btn btn-g" disabled={uploading} onClick={() => inputRef.current?.click()}>{uploading ? "Subiendo…" : "📁 Subir archivo"}</button>
+      </div>
+      <input className="inp" style={{ marginTop: 6 }} placeholder="…o pegá una URL" value={isBlob ? "" : (url || "")} onChange={(e) => onUrl(e.target.value)} />
+      {err && <div className="err">⚠ {err}</div>}
     </div>
   );
 }
@@ -62,6 +106,33 @@ export function PlatformPanel({ onLogout }) {
     if (res.ok) { flash(okMsg || "Listo."); await loadAll(); return true; }
     flash(res.error || "Error ejecutando la acción.", "err");
     return false;
+  }, [loadAll]);
+
+  // Alta de organización: crea por la Edge Function y, si se subió un archivo de
+  // logo, lo sube a Storage con el orgId recién creado y actualiza el branding.
+  const createOrg = useCallback(async (payload) => {
+    const { _logoFile, ...body } = payload;
+    // Nunca mandar una URL blob: (vista previa local) al backend.
+    if (body.branding?.logoUrl && String(body.branding.logoUrl).startsWith("blob:")) {
+      body.branding = { ...body.branding, logoUrl: null };
+    }
+    setBusy(true);
+    const res = await invokePlatform("create_organization", body);
+    if (!res.ok) { setBusy(false); flash(res.error || "No se pudo crear la organización.", "err"); return; }
+    const newOrgId = res.data?.organization_id;
+    if (_logoFile && newOrgId) {
+      try {
+        const url = await uploadLogo(newOrgId, _logoFile);
+        await invokePlatform("update_branding", { organization_id: newOrgId, logo_url: url });
+      } catch (e) {
+        setBusy(false);
+        flash("Organización creada, pero el logo no se pudo subir: " + (e?.message || e), "err");
+        await loadAll(); setShowNewOrg(false); return;
+      }
+    }
+    setBusy(false);
+    flash(`Organización “${body.slug}” creada.`);
+    await loadAll(); setShowNewOrg(false);
   }, [loadAll]);
 
   const orgs = data.organizations;
@@ -121,7 +192,7 @@ export function PlatformPanel({ onLogout }) {
       {showNewOrg && (
         <NewOrgModal existingSlugs={existingSlugsOf(orgs)} busy={busy}
           onClose={() => setShowNewOrg(false)}
-          onCreate={async (payload) => { const ok = await runAction("create_organization", payload, `Organización “${payload.slug}” creada.`); if (ok) setShowNewOrg(false); }} />
+          onCreate={createOrg} />
       )}
     </div>
   );
@@ -452,7 +523,7 @@ function OrgBrandingTab({ org, busy, runAction }) {
     <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
       <div style={{ ...card, flex: "1 1 320px" }}>
         <Field label="Nombre visible"><input className="inp" value={displayName} onChange={(e) => setDisplayName(e.target.value)} /></Field>
-        <Field label="Logo (URL)"><input className="inp" value={logoUrl} onChange={(e) => setLogoUrl(e.target.value)} placeholder="https://…" /></Field>
+        <LogoField label="Logo (archivo o URL)" url={logoUrl} onUrl={setLogoUrl} orgId={org.id} previewBg={secondary} />
         <div style={{ display: "flex", gap: 8 }}>
           <Field label="Color primario"><input className="inp" type="color" value={primary} onChange={(e) => setPrimary(e.target.value)} /></Field>
           <Field label="Color secundario"><input className="inp" type="color" value={secondary} onChange={(e) => setSecondary(e.target.value)} /></Field>
@@ -522,6 +593,7 @@ function AuditModule({ audit, orgs }) {
 // ── Modal: nueva organización ──────────────────────────────────
 function NewOrgModal({ existingSlugs, busy, onClose, onCreate }) {
   const [f, setF] = useState({ name: "", displayName: "", slug: "", ownerName: "", ownerEmail: "", plan: "base", initialStatus: "trial", logoUrl: "", primaryColor: "#1A5DC8", secondaryColor: "#0B1F4B" });
+  const [logoFile, setLogoFile] = useState(null);
   const [errors, setErrors] = useState({});
   const set = (k) => (e) => setF((p) => ({ ...p, [k]: e.target.value }));
 
@@ -534,6 +606,7 @@ function NewOrgModal({ existingSlugs, busy, onClose, onCreate }) {
       ownerName: v.value.ownerName, ownerEmail: v.value.ownerEmail,
       plan: v.value.plan, initialStatus: v.value.initialStatus, tenantType: v.value.tenantType,
       branding: v.value.branding,
+      _logoFile: logoFile, // se sube tras crear la org (aún no hay orgId)
     });
   }
 
@@ -558,7 +631,7 @@ function NewOrgModal({ existingSlugs, busy, onClose, onCreate }) {
           </Field>
         </div>
         <div style={{ fontSize: 12, color: C.muted, fontWeight: 700, margin: "6px 0" }}>Branding inicial (opcional)</div>
-        <Field label="Logo (URL)"><input className="inp" value={f.logoUrl} onChange={set("logoUrl")} placeholder="https://…" /></Field>
+        <LogoField label="Logo (subir archivo o pegar URL)" url={f.logoUrl} onUrl={(v) => setF((p) => ({ ...p, logoUrl: v }))} onFile={setLogoFile} previewBg={f.secondaryColor} />
         <div style={{ display: "flex", gap: 8 }}>
           <Field label="Color primario"><input className="inp" type="color" value={f.primaryColor} onChange={set("primaryColor")} /></Field>
           <Field label="Color secundario"><input className="inp" type="color" value={f.secondaryColor} onChange={set("secondaryColor")} /></Field>

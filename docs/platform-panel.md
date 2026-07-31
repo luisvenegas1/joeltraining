@@ -44,8 +44,11 @@ depende del subdominio/slug de ningún tenant.
    La demo (`tenant_type='demo'`) no se puede bloquear.
 5. **Pagos**: registra pagos manuales de plataforma (tabla separada de la legacy
    `payments` de clientes) y, opcionalmente, activa la suscripción.
-6. **Branding**: edita nombre visible, logo (URL) y colores usando
-   `organization_settings`, con vista previa.
+6. **Branding**: edita nombre visible, logo y colores usando
+   `organization_settings`, con vista previa. El logo se puede **subir como
+   archivo** (se guarda en el bucket público `org-logos` de Supabase Storage) o
+   pegar una URL. En el alta de organización, el archivo se sube después de crear
+   la org (ya con su `organization_id`).
 7. **Auditoría**: registro de acciones sensibles con responsable, acción, org,
    fecha y metadatos seguros.
 
@@ -126,9 +129,19 @@ select * from public.platform_admins where user_id = '<tu-auth-user-uuid>';
 ### 4.4 Usar el panel
 
 - La app debe correr con `VITE_AUTH_MODE=supabase` (preproducción).
-- Entrá a `https://<tu-dominio>/platform`. Iniciá sesión con tu cuenta superadmin.
+- Entrá a **`https://trainingapp.tito-apps.com/platform`** (subdominio neutral del
+  panel; ver `docs/dominios-vercel.md`). También funciona en cualquier host + `/platform`.
+- Iniciá sesión con tu cuenta superadmin.
 - El sidebar del panel de entrenador también muestra "🛰️ Plataforma" solo si sos
   superadmin.
+
+### 4.5 Storage para logos (subir archivo)
+
+El logo se puede subir como archivo al bucket público `org-logos`. Ese bucket y sus
+policies se crean con `supabase/cutover/storage.sql` (operación manual). La policy
+de escritura ya incluye al superadmin (`is_superadmin()`), para que puedas subir
+logos de cualquier organización desde el panel cuando se active RLS. En
+preproducción (RLS apagado) funciona sin más.
 
 ---
 

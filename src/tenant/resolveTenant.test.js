@@ -76,6 +76,23 @@ describe("usesPathResolution", () => {
     expect(usesPathResolution("random.example.com")).toBe(false);
     expect(usesPathResolution("app.brunofitness.com")).toBe(false);
   });
+  it("subdominios RESERVADOS (trainingapp/app/admin/platform) NO son tenants → por ruta", () => {
+    expect(usesPathResolution("trainingapp.tito-apps.com")).toBe(true);
+    expect(usesPathResolution("app.tito-apps.com")).toBe(true);
+    expect(usesPathResolution("admin.titoapps.com")).toBe(true);
+  });
+});
+
+describe("Panel de Plataforma en subdominio neutral (trainingapp)", () => {
+  it("trainingapp.tito-apps.com NO resuelve ningún tenant (no es Johel ni ninguno)", () => {
+    expect(slugFromHostname("trainingapp.tito-apps.com")).toBeNull();
+    expect(resolveTenantSlug({ hostname: "trainingapp.tito-apps.com", pathname: "/platform" })).toBeNull();
+    expect(resolveTenantSlug({ hostname: "trainingapp.tito-apps.com", pathname: "/" })).toBeNull();
+  });
+  it("la ruta /platform nunca se interpreta como slug de tenant", () => {
+    expect(slugFromPath("/platform")).toBeNull();
+    expect(resolveTenantSlug({ hostname: "tito-apps.com", pathname: "/platform" })).toBeNull();
+  });
 });
 
 describe("resolveTenantSlug — producción, previews y seguridad", () => {

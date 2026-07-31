@@ -1,4 +1,4 @@
-# Migraciones — Joel Training → Plataforma SaaS multi-tenant
+# Migraciones — Johel Training → Plataforma SaaS multi-tenant
 
 Solo contienen migraciones **aditivas e idempotentes**: no borran tablas, columnas
 ni datos, no recrean tablas legacy, y se pueden correr más de una vez sin daño. Son

@@ -22,8 +22,15 @@ const PLATFORM_DOMAINS = ["tito-apps.com", "titoapps.com"];
 const APEX_HOSTS = new Set(PLATFORM_DOMAINS.flatMap((d) => [d, `www.${d}`]));
 // Hosts que no representan un subdominio-tenant (se resuelve por ruta):
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "0.0.0.0"]);
-// El subdominio de producción es "joeltraining" (nombre de la app), pero el slug
-// del tenant en la BD es "joheltraining". Alias de subdominio → slug.
+// Subdominios RESERVADOS de la plataforma (NO son tenants). Aquí vive el Panel de
+// Plataforma (trainingapp.tito-apps.com/platform), separado del tenant de Johel.
+// Su raíz no resuelve ningún tenant (se comporta como apex: por ruta / null).
+const RESERVED_SUBDOMAINS = new Set(["www", "app", "admin", "platform", "trainingapp"]);
+// El subdominio CANÓNICO de producción es "joheltraining.tito-apps.com" (con h),
+// que coincide con el slug del tenant en la BD ("joheltraining") → resuelve directo.
+// Se conserva el alias del subdominio viejo con typo "joeltraining" (sin h) para
+// compatibilidad: aunque Vercel lo redirige a "joheltraining", si algún request lo
+// evade, igual resuelve al tenant correcto en vez de "no encontrada".
 const SUBDOMAIN_SLUG_ALIASES = { joeltraining: "joheltraining" };
 
 /** ¿Este host resuelve el tenant por RUTA? (apex/www de plataforma, localhost, *.local, *.vercel.app) */
@@ -33,8 +40,22 @@ export function usesPathResolution(hostname) {
     LOCAL_HOSTS.has(host) ||
     host.endsWith(".local") ||
     APEX_HOSTS.has(host) ||
+    isReservedSubdomainHost(host) ||
     host.endsWith(".vercel.app")
   );
+}
+
+/** ¿El host es un subdominio RESERVADO de la plataforma (app/admin/platform/…)? */
+export function isReservedSubdomainHost(hostname) {
+  const host = String(hostname || "").toLowerCase().split(":")[0];
+  for (const domain of PLATFORM_DOMAINS) {
+    const suffix = `.${domain}`;
+    if (host.endsWith(suffix)) {
+      const sub = host.slice(0, -suffix.length).split(".")[0];
+      return RESERVED_SUBDOMAINS.has(sub);
+    }
+  }
+  return false;
 }
 
 /** Extrae el slug del subdominio de un hostname de plataforma (con alias). */
@@ -50,7 +71,7 @@ export function slugFromHostname(hostname) {
     if (host.endsWith(suffix)) {
       // primer segmento del subdominio
       const sub = host.slice(0, -suffix.length).split(".")[0];
-      if (!sub || sub === "www") return null;
+      if (!sub || RESERVED_SUBDOMAINS.has(sub)) return null; // reservados (app/admin/platform/…) no son tenants
       return SUBDOMAIN_SLUG_ALIASES[sub] || sub;
     }
   }
@@ -66,7 +87,7 @@ export function slugFromPath(pathname) {
   const seg = String(pathname).split("/").filter(Boolean)[0];
   if (!seg) return null;
   // Rutas reservadas que no son slugs de tenant
-  const reserved = new Set(["assets", "api", "auth", "icons", "favicon.svg"]);
+  const reserved = new Set(["assets", "api", "auth", "icons", "favicon.svg", "platform"]);
   if (reserved.has(seg)) return null;
   return seg.toLowerCase();
 }
