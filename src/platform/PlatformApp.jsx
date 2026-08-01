@@ -2,6 +2,7 @@ import { useState } from "react";
 import { STYLES } from "../johel-training.styles";
 import { usePlatformApp } from "./usePlatformApp";
 import { PlatformPanel } from "./PlatformPanel";
+import { PasswordField } from "../auth/PasswordField";
 
 // Login PROPIO del panel (branding "Tito Apps", sin branding de ningún tenant).
 function PlatformLogin({ onSubmit, formError }) {
@@ -17,14 +18,14 @@ function PlatformLogin({ onSubmit, formError }) {
     <div className="login-page">
       <div className="login-box">
         <div className="login-logo">
-          <div style={{ fontSize: 40 }}>🛰️</div>
+          <img src="/brand/tito-training.png" alt="Tito Apps" style={{ width: 96, height: 96, objectFit: "contain", display: "block", margin: "0 auto 8px" }} />
           <div className="login-brand">Tito Apps</div>
           <div className="login-sub">Panel de Plataforma</div>
         </div>
         {formError && <div className="err">⚠ {formError}</div>}
         <form onSubmit={submit}>
           <div className="fg"><label>Correo</label><input className="inp" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="tu@correo.com" autoComplete="username" /></div>
-          <div className="fg"><label>Contraseña</label><input className="inp" type="password" value={pw} onChange={(e) => setPw(e.target.value)} autoComplete="current-password" /></div>
+          <div className="fg"><label>Contraseña</label><PasswordField value={pw} onChange={(e) => setPw(e.target.value)} autoComplete="current-password" /></div>
           <button className="btn btn-p btn-full" type="submit" style={{ marginTop: 8 }} disabled={busy}>{busy ? "Ingresando…" : "Ingresar →"}</button>
         </form>
       </div>

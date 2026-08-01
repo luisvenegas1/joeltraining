@@ -1,11 +1,11 @@
 {
-  "name": "Johel Herrera Training",
-  "short_name": "JH Training",
-  "description": "Strength · Discipline · Evolution",
+  "name": "Tito Training",
+  "short_name": "Tito Training",
+  "description": "Tu plataforma de entrenamiento",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#ffffff",
+  "background_color": "#0B3D2E",
+  "theme_color": "#0B3D2E",
   "orientation": "portrait",
   "icons": [
     {

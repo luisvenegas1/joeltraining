@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useBranding } from "../branding/BrandingContext";
 import { sendPasswordReset, updateOwnPassword } from "./authClient";
+import { PasswordField } from "./PasswordField";
 
 // Spinner de carga de sesión.
 export function AuthLoading({ label = "Verificando sesión…" }) {
@@ -60,7 +61,7 @@ export function SupabaseLogin({ onSubmit, formError }) {
           {formError && <div className="err">⚠ {formError}</div>}
           <form onSubmit={submit}>
             <div className="fg"><label>Correo</label><input className="inp" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="tu@correo.com" autoComplete="username" /></div>
-            <div className="fg"><label>Contraseña</label><input className="inp" type="password" value={pw} onChange={(e) => setPw(e.target.value)} autoComplete="current-password" /></div>
+            <div className="fg"><label>Contraseña</label><PasswordField value={pw} onChange={(e) => setPw(e.target.value)} autoComplete="current-password" /></div>
             <button className="btn btn-p btn-full" type="submit" style={{ marginTop: 8 }} disabled={busy}>{busy ? "Ingresando…" : "Ingresar →"}</button>
           </form>
           <button type="button" onClick={() => { setForgot(true); setResetMsg(null); setResetErr(null); }} style={{ background: "none", border: "none", color: "#1A5DC8", fontSize: 12, fontWeight: 700, cursor: "pointer", marginTop: 12, display: "block", width: "100%", textAlign: "center" }}>¿Olvidaste tu contraseña?</button>
@@ -120,8 +121,8 @@ export function SetNewPasswordScreen({ onDone }) {
         ) : (
           <form onSubmit={submit}>
             {err && <div className="err">⚠ {err}</div>}
-            <div className="fg"><label>Nueva contraseña</label><input className="inp" type="password" value={pw} onChange={(e) => setPw(e.target.value)} autoComplete="new-password" /></div>
-            <div className="fg"><label>Confirmar contraseña</label><input className="inp" type="password" value={pw2} onChange={(e) => setPw2(e.target.value)} autoComplete="new-password" /></div>
+            <div className="fg"><label>Nueva contraseña</label><PasswordField value={pw} onChange={(e) => setPw(e.target.value)} autoComplete="new-password" /></div>
+            <div className="fg"><label>Confirmar contraseña</label><PasswordField value={pw2} onChange={(e) => setPw2(e.target.value)} autoComplete="new-password" /></div>
             <button className="btn btn-p btn-full" type="submit" style={{ marginTop: 8 }} disabled={busy}>{busy ? "Guardando…" : "Guardar contraseña"}</button>
           </form>
         )}

@@ -25,8 +25,8 @@ describe("resolveBranding", () => {
     expect(b.taglineShort).toBe("Dem"); // sin separadores "·", toma las 3 primeras letras
     expect(b.primaryColor).toBe("#7B1FA2");
     expect(b.callToAction).toContain("Tito Apps");
-    // No hereda el logo ni el nombre de Johel
-    expect(b.logoUrl).toBeNull();
+    // No hereda el logo ni el nombre de Johel: sin logo propio usa el default neutro (Tito Training).
+    expect(b.logoUrl).toBe("/brand/tito-training.png");
     expect(b.footerName).toBe("Tito Trainer Demo");
   });
 
