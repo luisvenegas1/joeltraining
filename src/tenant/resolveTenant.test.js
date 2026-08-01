@@ -93,6 +93,11 @@ describe("Panel de Plataforma en subdominio neutral (trainingapp)", () => {
     expect(slugFromPath("/platform")).toBeNull();
     expect(resolveTenantSlug({ hostname: "tito-apps.com", pathname: "/platform" })).toBeNull();
   });
+  it("onboarding por RUTA: trainingapp.tito-apps.com/<slug> resuelve el tenant", () => {
+    // Permite dar de alta entrenadores sin DNS por cliente: un solo host + /slug.
+    expect(resolveTenantSlug({ hostname: "trainingapp.tito-apps.com", pathname: "/joheltraining" })).toBe("joheltraining");
+    expect(resolveTenantSlug({ hostname: "trainingapp.tito-apps.com", pathname: "/juanfitness/dashboard" })).toBe("juanfitness");
+  });
 });
 
 describe("resolveTenantSlug — producción, previews y seguridad", () => {

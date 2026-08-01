@@ -1,9 +1,12 @@
-const CACHE_NAME = "jh-training-v1";
+// Service worker de la PWA.
+// REGLA CLAVE: solo cachea archivos ESTÁTICOS del MISMO origen (HTML/JS/CSS/imágenes).
+// NUNCA cachea llamadas a Supabase ni a ninguna API/tercero, por dos motivos:
+//   1) los datos deben venir siempre frescos (rutinas, ejercicios, etc.),
+//   2) evitar que en un dispositivo compartido se sirva a un usuario la respuesta
+//      cacheada de otro (fuga de datos).
+const CACHE_NAME = "jh-training-v2"; // bump: invalida el caché viejo (v1 cacheaba de más)
 
-const ASSETS_TO_CACHE = [
-  "/",
-  "/index.html",
-];
+const ASSETS_TO_CACHE = ["/", "/index.html"];
 
 // Install: cache core assets
 self.addEventListener("install", (event) => {
@@ -13,7 +16,7 @@ self.addEventListener("install", (event) => {
   self.skipWaiting();
 });
 
-// Activate: delete old caches
+// Activate: borra caches viejos (incluye el v1 que cacheaba respuestas de Supabase)
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
@@ -25,30 +28,31 @@ self.addEventListener("activate", (event) => {
   self.clients.claim();
 });
 
-// Fetch: network first, fallback to cache
+// Fetch: solo assets del MISMO origen. Supabase/APIs/terceros van directo a la red.
 self.addEventListener("fetch", (event) => {
-  // Only handle GET requests
-  if (event.request.method !== "GET") return;
+  const req = event.request;
+  if (req.method !== "GET") return;
 
+  const url = new URL(req.url);
+  // Todo lo que no sea del propio dominio (Supabase, storage, etc.) NO pasa por el
+  // service worker: se resuelve normal contra la red, siempre fresco y sin cachear.
+  if (url.origin !== self.location.origin) return;
+
+  // Network-first para los assets propios: intenta red, cachea copia; si no hay red,
+  // sirve del caché (y index.html para navegación offline).
   event.respondWith(
-    fetch(event.request)
+    fetch(req)
       .then((response) => {
-        // Cache a copy of the response
         const responseClone = response.clone();
-        caches.open(CACHE_NAME).then((cache) => {
-          cache.put(event.request, responseClone);
-        });
+        caches.open(CACHE_NAME).then((cache) => cache.put(req, responseClone));
         return response;
       })
-      .catch(() => {
-        // Network failed, serve from cache
-        return caches.match(event.request).then((cached) => {
+      .catch(() =>
+        caches.match(req).then((cached) => {
           if (cached) return cached;
-          // Fallback to index.html for navigation requests
-          if (event.request.mode === "navigate") {
-            return caches.match("/index.html");
-          }
-        });
-      })
+          if (req.mode === "navigate") return caches.match("/index.html");
+          return undefined;
+        })
+      )
   );
 });
