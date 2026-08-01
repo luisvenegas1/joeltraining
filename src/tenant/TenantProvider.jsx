@@ -3,6 +3,7 @@ import { resolveTenantSlug } from "./resolveTenant";
 import { loadTenantBySlug } from "./loadTenant";
 import { JOHEL_BRANDING, NEUTRAL_BRANDING } from "../branding/branding";
 import { BrandingContext } from "../branding/BrandingContext";
+import { DocumentBranding } from "../branding/DocumentBranding";
 import { TenantContext } from "./tenantContext";
 import { isPlatformPath } from "../platform/platformRoute";
 
@@ -15,7 +16,7 @@ export function TenantProvider({ children }) {
     // Legacy: sin gating, branding Johel.
     return (
       <TenantContext.Provider value={{ mode: "legacy", slug: "joheltraining", org: null, branding: JOHEL_BRANDING }}>
-        <BrandingContext.Provider value={JOHEL_BRANDING}>{children}</BrandingContext.Provider>
+        <BrandingContext.Provider value={JOHEL_BRANDING}><DocumentBranding branding={JOHEL_BRANDING} />{children}</BrandingContext.Provider>
       </TenantContext.Provider>
     );
   }
@@ -58,7 +59,7 @@ function MultiTenant({ children }) {
   if (onPlatform) {
     return (
       <TenantContext.Provider value={{ mode: "platform", slug: null, org: null, branding: NEUTRAL_BRANDING }}>
-        <BrandingContext.Provider value={NEUTRAL_BRANDING}>{children}</BrandingContext.Provider>
+        <BrandingContext.Provider value={NEUTRAL_BRANDING}><DocumentBranding branding={{ displayName: "Tito Apps · Plataforma" }} />{children}</BrandingContext.Provider>
       </TenantContext.Provider>
     );
   }
@@ -80,7 +81,7 @@ function MultiTenant({ children }) {
   const value = { mode: "tenant", slug: state.slug, org: state.org, branding: state.branding };
   return (
     <TenantContext.Provider value={value}>
-      <BrandingContext.Provider value={state.branding}>{children}</BrandingContext.Provider>
+      <BrandingContext.Provider value={state.branding}><DocumentBranding branding={state.branding} />{children}</BrandingContext.Provider>
     </TenantContext.Provider>
   );
 }

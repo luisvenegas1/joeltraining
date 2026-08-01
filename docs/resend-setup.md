@@ -1,0 +1,60 @@
+# Configurar Resend como SMTP de Supabase Auth
+
+Supabase Auth envía los correos (restablecer contraseña, invitaciones, etc.). Por
+defecto usa su propio SMTP con **límites bajos** y remitente genérico. Conectando
+**Resend** como SMTP personalizado, los correos salen desde tu dominio
+(`tito-apps.com`) y con las plantillas lindas de `docs/email-templates/`.
+
+Tu DNS ya tiene los registros de Resend (`resend._domainkey`, SPF con `amazonses`,
+DMARC, y `send.tito-apps.com`), así que el dominio ya está casi listo.
+
+## Paso 1 — Resend
+1. Entrá a **resend.com** → **Domains**. Confirmá que `tito-apps.com` figure como
+   **Verified** (si no, seguí las instrucciones de DKIM/SPF que ya tenés en Cloudflare).
+2. **API Keys** → **Create API Key** (permiso "Sending access"). Copiá la clave
+   (`re_...`). No la commitees.
+
+## Paso 2 — Supabase (SMTP personalizado)
+En Supabase → **Project Settings → Authentication → SMTP Settings** (o
+**Authentication → Emails → SMTP**), activá **Enable Custom SMTP** y poné:
+
+- **Host:** `smtp.resend.com`
+- **Port:** `465` (SSL) — o `587` si preferís STARTTLS
+- **Username:** `resend`
+- **Password:** tu API key de Resend (`re_...`)
+- **Sender email:** `no-reply@tito-apps.com` (debe ser un dominio verificado en Resend)
+- **Sender name:** `Tito Apps`
+
+Guardá. Mandate un correo de prueba (el botón "Send test email" si aparece, o
+disparando un "¿olvidaste tu contraseña?" en la app).
+
+## Paso 3 — Plantillas
+Supabase → **Authentication → Email Templates**. Para cada uno, pegá el HTML:
+
+| Template en Supabase | Archivo |
+|----------------------|---------|
+| Reset Password       | `docs/email-templates/reset-password.html` |
+| Invite user          | `docs/email-templates/invite.html` |
+| Confirm signup       | `docs/email-templates/confirm-signup.html` |
+| Magic Link           | `docs/email-templates/magic-link.html` |
+
+(El asunto/subject lo ponés arriba de cada template; sugerencias: "Restablecé tu
+contraseña", "Te damos la bienvenida a tu plataforma", "Confirmá tu cuenta",
+"Tu enlace de acceso".)
+
+## Paso 4 — Redirect URLs
+Supabase → **Authentication → URL Configuration → Redirect URLs**. Agregá:
+- `https://joheltraining.tito-apps.com/`
+- `https://trainingapp.tito-apps.com/`
+- `https://titotrainer.tito-apps.com/`
+- `http://localhost:5173/`
+
+## Paso 5 — (opcional) Límites
+Con SMTP propio podés subir los límites de envío en **Authentication → Rate Limits**
+(el SMTP integrado de Supabase es muy limitado para producción).
+
+## Nota multi-tenant
+Estos correos de Supabase Auth son **globales del proyecto** (mismo diseño para
+todos los tenants), por eso el branding es "Tito Apps". Para correos con el logo de
+cada entrenador, hay que enviarlos con una Edge Function usando la API de Resend
+directamente (queda como mejora futura).
