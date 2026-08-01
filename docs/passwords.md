@@ -22,9 +22,10 @@ Generar contraseña". Ahora pasa por la Edge Function segura
 Si el cliente todavía no tiene cuenta de correo, la UI avisa que primero hay que
 asignarle un correo y crear su acceso.
 
-**Desplegar (manual):**
+**Desplegar (manual):** con `--no-verify-jwt` (la función verifica el JWT por
+dentro; sin el flag, el gateway rompe la preflight CORS del navegador).
 ```bash
-supabase functions deploy reset-client-password
+supabase functions deploy reset-client-password --no-verify-jwt
 # usa los mismos secretos ya configurados:
 # supabase secrets set PROJECT_URL=... SERVICE_ROLE_KEY=... ANON_KEY=...
 ```

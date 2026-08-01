@@ -102,8 +102,13 @@ O corré manualmente `0019`, `0020`, `0021` en el SQL Editor, en orden.
 
 ### 4.2 Edge Function
 
+> IMPORTANTE: desplegá con `--no-verify-jwt`. La función se llama desde el
+> navegador y verifica el JWT + `platform_admins` **por dentro**; si se deja el
+> `verify_jwt` del gateway activo, este rechaza la preflight CORS (OPTIONS) y el
+> navegador falla con "Failed to send a request to the Edge Function".
+
 ```bash
-supabase functions deploy platform-admin
+supabase functions deploy platform-admin --no-verify-jwt
 
 # Secretos (NO commitear): el service_role vive solo aquí.
 supabase secrets set \
