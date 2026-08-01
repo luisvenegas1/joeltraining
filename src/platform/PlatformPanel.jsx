@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { loadPlatformData, invokePlatform, existingSlugsOf, paymentsForOrg, auditForOrg } from "./platformApi";
-import { uploadLogo } from "../storage/storage";
+import { uploadLogo, uploadTrainerPhoto } from "../storage/storage";
 import {
   validateNewOrg, validatePayment, bucketOrganizations, expiringSubscriptions,
   statusLabel, canSuspendOrg, SUB_STATUSES, PAYMENT_METHODS,
@@ -33,7 +33,7 @@ function Stat({ label, value, color }) {
 // sube de inmediato al bucket público `org-logos` y devuelve la URL pública. Si no
 // (alta de organización), guarda el File para subirlo después de crear la org y
 // muestra una vista previa local.
-function LogoField({ label = "Logo", url, onUrl, onFile, orgId, previewBg = C.navy }) {
+function LogoField({ label = "Logo", url, onUrl, onFile, orgId, previewBg = C.navy, uploader = uploadLogo }) {
   const inputRef = useRef(null);
   const [uploading, setUploading] = useState(false);
   const [err, setErr] = useState(null);
@@ -47,7 +47,7 @@ function LogoField({ label = "Logo", url, onUrl, onFile, orgId, previewBg = C.na
     if (file.size > 3 * 1024 * 1024) { setErr("La imagen no debe superar 3 MB."); return; }
     if (orgId) {
       setUploading(true);
-      try { onUrl(await uploadLogo(orgId, file)); }
+      try { onUrl(await uploader(orgId, file)); }
       catch (e2) { setErr("No se pudo subir: " + (e2?.message || e2)); }
       finally { setUploading(false); }
     } else {
@@ -515,27 +515,61 @@ function OrgPaymentsTab({ org, payments, busy, runAction }) {
 }
 
 function OrgBrandingTab({ org, busy, runAction }) {
-  const [displayName, setDisplayName] = useState(org.name);
-  const [logoUrl, setLogoUrl] = useState("");
-  const [primary, setPrimary] = useState("#1A5DC8");
-  const [secondary, setSecondary] = useState("#0B1F4B");
+  const [f, setF] = useState({
+    displayName: org.name, tagline: "", logoUrl: "", faviconUrl: "", trainerPhotoUrl: "",
+    primary: "#1A5DC8", secondary: "#0B1F4B", whatsapp: "", instagram: "", contactEmail: "", bio: "",
+  });
+  const set = (k) => (v) => setF((p) => ({ ...p, [k]: typeof v === "string" ? v : v?.target?.value ?? "" }));
+
+  function save() {
+    runAction("update_branding", {
+      organization_id: org.id,
+      display_name: f.displayName,
+      tagline: f.tagline || null,
+      logo_url: f.logoUrl || null,
+      favicon_url: f.faviconUrl || null,
+      trainer_photo_url: f.trainerPhotoUrl || null,
+      primary_color: f.primary,
+      secondary_color: f.secondary,
+      whatsapp: f.whatsapp || null,
+      instagram: f.instagram || null,
+      contact_email: f.contactEmail || null,
+      bio: f.bio || null,
+    }, "Branding actualizado.");
+  }
+
   return (
     <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-      <div style={{ ...card, flex: "1 1 320px" }}>
-        <Field label="Nombre visible"><input className="inp" value={displayName} onChange={(e) => setDisplayName(e.target.value)} /></Field>
-        <LogoField label="Logo (archivo o URL)" url={logoUrl} onUrl={setLogoUrl} orgId={org.id} previewBg={secondary} />
+      <div style={{ ...card, flex: "1 1 340px" }}>
+        <Field label="Nombre visible"><input className="inp" value={f.displayName} onChange={set("displayName")} /></Field>
+        <Field label="Lema / tagline"><input className="inp" value={f.tagline} onChange={set("tagline")} placeholder="Strength · Discipline · Evolution" /></Field>
+        <LogoField label="Logo (archivo o URL)" url={f.logoUrl} onUrl={set("logoUrl")} orgId={org.id} previewBg={f.secondary} />
+        <LogoField label="Favicon / ícono app (opcional; si falta usa el logo)" url={f.faviconUrl} onUrl={set("faviconUrl")} orgId={org.id} previewBg={f.secondary} />
+        <LogoField label="Foto del entrenador" url={f.trainerPhotoUrl} onUrl={set("trainerPhotoUrl")} orgId={org.id} uploader={uploadTrainerPhoto} previewBg={f.secondary} />
         <div style={{ display: "flex", gap: 8 }}>
-          <Field label="Color primario"><input className="inp" type="color" value={primary} onChange={(e) => setPrimary(e.target.value)} /></Field>
-          <Field label="Color secundario"><input className="inp" type="color" value={secondary} onChange={(e) => setSecondary(e.target.value)} /></Field>
+          <Field label="Color primario"><input className="inp" type="color" value={f.primary} onChange={set("primary")} /></Field>
+          <Field label="Color secundario"><input className="inp" type="color" value={f.secondary} onChange={set("secondary")} /></Field>
         </div>
-        <button className="btn btn-p" disabled={busy} onClick={() => runAction("update_branding", { organization_id: org.id, display_name: displayName, logo_url: logoUrl || null, primary_color: primary, secondary_color: secondary }, "Branding actualizado.")}>Guardar branding</button>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <Field label="WhatsApp"><input className="inp" value={f.whatsapp} onChange={set("whatsapp")} placeholder="50688888888" /></Field>
+          <Field label="Instagram"><input className="inp" value={f.instagram} onChange={set("instagram")} placeholder="@usuario" /></Field>
+        </div>
+        <Field label="Correo de contacto"><input className="inp" type="email" value={f.contactEmail} onChange={set("contactEmail")} /></Field>
+        <Field label="Bio / descripción"><textarea className="inp" rows={3} value={f.bio} onChange={set("bio")} /></Field>
+        <button className="btn btn-p" disabled={busy} onClick={save}>Guardar branding</button>
       </div>
-      <div style={{ ...card, flex: "1 1 220px" }}>
+      <div style={{ ...card, flex: "1 1 240px", alignSelf: "flex-start" }}>
         <div style={{ fontWeight: 800, marginBottom: 8, fontSize: 13 }}>Vista previa</div>
-        <div style={{ background: secondary, borderRadius: 12, padding: 16, textAlign: "center", color: "#fff" }}>
-          {logoUrl ? <img src={logoUrl} alt="logo" style={{ width: 64, height: 64, objectFit: "contain", background: "#fff", borderRadius: 8, padding: 4 }} /> : <div style={{ fontSize: 34 }}>🏋️</div>}
-          <div style={{ fontWeight: 900, marginTop: 8 }}>{displayName || org.name}</div>
-          <button style={{ marginTop: 10, background: primary, color: "#fff", border: "none", borderRadius: 8, padding: "6px 14px", fontWeight: 800 }}>Botón</button>
+        <div style={{ background: f.secondary, borderRadius: 12, padding: 16, textAlign: "center", color: "#fff" }}>
+          {f.logoUrl ? <img src={f.logoUrl} alt="logo" style={{ width: 64, height: 64, objectFit: "contain", background: "#fff", borderRadius: 8, padding: 4 }} /> : <div style={{ fontSize: 34 }}>🏋️</div>}
+          <div style={{ fontWeight: 900, marginTop: 8 }}>{f.displayName || org.name}</div>
+          {f.tagline && <div style={{ fontSize: 11, opacity: 0.8, marginTop: 2 }}>{f.tagline}</div>}
+          <button style={{ marginTop: 10, background: f.primary, color: "#fff", border: "none", borderRadius: 8, padding: "6px 14px", fontWeight: 800 }}>Botón</button>
+        </div>
+        <div style={{ fontSize: 11, color: C.muted, marginTop: 10, display: "flex", alignItems: "center", gap: 6 }}>
+          Pestaña: {f.faviconUrl || f.logoUrl
+            ? <img src={f.faviconUrl || f.logoUrl} alt="favicon" style={{ width: 16, height: 16, objectFit: "contain" }} />
+            : "🏋️"} {f.displayName || org.name}
         </div>
       </div>
     </div>

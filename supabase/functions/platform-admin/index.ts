@@ -285,11 +285,13 @@ async function updateBranding(admin: SB, actor: string, body: SB) {
   const orgId = body.organization_id;
   if (!orgId) return json({ error: "missing_org" }, 400);
   const patch: Record<string, unknown> = { organization_id: orgId };
-  if (body.display_name !== undefined) patch.display_name = body.display_name;
-  if (body.logo_url !== undefined) patch.logo_url = body.logo_url;
-  if (body.primary_color !== undefined) patch.primary_color = body.primary_color;
-  if (body.secondary_color !== undefined) patch.secondary_color = body.secondary_color;
-  if (body.tagline !== undefined) patch.tagline = body.tagline;
+  const fields = [
+    "display_name", "logo_url", "favicon_url", "trainer_photo_url", "primary_color",
+    "secondary_color", "tagline", "bio", "whatsapp", "instagram", "contact_email", "call_to_action",
+  ];
+  for (const key of fields) {
+    if (body[key] !== undefined) patch[key] = body[key];
+  }
   const up = await admin.from("organization_settings").upsert(patch, { onConflict: "organization_id" });
   if (up.error) return json({ error: "branding_failed", detail: up.error.message }, 400);
   await audit(admin, actor, "org.branding_updated", orgId, { fields: Object.keys(patch).filter((k) => k !== "organization_id") });
