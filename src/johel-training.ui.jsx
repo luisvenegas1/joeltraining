@@ -192,7 +192,7 @@ export function Sidebar({user,page,setPage,onLogout,isSuperadmin=false}){
   const photo=localStorage.getItem(photoKey);
   return(
     <aside className="sidebar">
-      <div className="sb-logo"><img src={brand.logoUrl||LOGO_IMG} alt={brand.displayName} style={{width:48,height:48,objectFit:"contain",borderRadius:6,background:"#fff",padding:2}}/><div className="sb-brand">{brand.displayName}</div><div className="sb-sub">{brand.taglineShort}</div></div>
+      <div className="sb-logo"><img src={brand.logoUrl||LOGO_IMG} alt={brand.displayName} style={{width:52,height:52,objectFit:"contain",borderRadius:10}}/><div className="sb-brand">{brand.displayName}</div><div className="sb-sub">{brand.taglineShort}</div></div>
       <nav>
         {isT&&<div className="nav-sec">Menú</div>}
         {navs.map(n=>(<div key={n.id} className={`nav-item${page===n.id?" active":""}`} onClick={()=>setPage(n.id)}><span className="nav-icon">{n.icon}</span><span>{n.label}</span></div>))}
