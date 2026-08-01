@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
 import { resolveTenantSlug } from "./resolveTenant";
 import { loadTenantBySlug } from "./loadTenant";
-import { JOHEL_BRANDING } from "../branding/branding";
+import { JOHEL_BRANDING, NEUTRAL_BRANDING } from "../branding/branding";
 import { BrandingContext } from "../branding/BrandingContext";
 import { TenantContext } from "./tenantContext";
+import { isPlatformPath } from "../platform/platformRoute";
 
 // El multi-tenant se activa con VITE_MULTITENANT=on (tras migraciones + Auth).
 // Mientras esté apagado, la app se comporta EXACTAMENTE como hoy (Johel legacy).
@@ -22,9 +23,13 @@ export function TenantProvider({ children }) {
 }
 
 function MultiTenant({ children }) {
+  // El Panel de Plataforma (/platform) NO pertenece a ningún tenant: no se resuelve
+  // organización ni se bloquea. Su acceso se valida aparte contra platform_admins.
+  const onPlatform = isPlatformPath(window.location.pathname);
   const [state, setState] = useState({ loading: true });
 
   useEffect(() => {
+    if (onPlatform) return; // ruta del panel: sin resolución de tenant
     let alive = true;
     (async () => {
       await Promise.resolve(); // asegura que los setState ocurran fuera del render-effect
@@ -46,7 +51,17 @@ function MultiTenant({ children }) {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [onPlatform]);
+
+  // Ruta del panel: renderiza los hijos (la ruta /platform monta PlatformApp) con
+  // branding neutro, sin gating de tenant.
+  if (onPlatform) {
+    return (
+      <TenantContext.Provider value={{ mode: "platform", slug: null, org: null, branding: NEUTRAL_BRANDING }}>
+        <BrandingContext.Provider value={NEUTRAL_BRANDING}>{children}</BrandingContext.Provider>
+      </TenantContext.Provider>
+    );
+  }
 
   if (state.loading) return <TenantScreen title="Cargando…" />;
   if (state.status !== "ok") {
