@@ -1,11 +1,11 @@
 export const STYLES=`
 @import url('https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;900&family=Barlow+Condensed:wght@600;700;900&display=swap');
 *{box-sizing:border-box;margin:0;padding:0}
-html,body{height:100%;font-family:'Barlow',sans-serif;background:#F5F7FC;color:#0D1B3E;-webkit-tap-highlight-color:transparent;overscroll-behavior:none}
+html,body{height:100%;font-family:'Barlow',sans-serif;background:#F5F7FC;color:#0D1B3E;-webkit-tap-highlight-color:transparent;overscroll-behavior:none;-webkit-text-size-adjust:100%;text-size-adjust:100%;overflow-x:hidden;width:100%;max-width:100%}
 html{background:#F5F7FC !important}
 body{background:#F5F7FC !important}
-#root{background:#F5F7FC;min-height:100vh;min-height:100dvh}
-.app{display:flex;min-height:100vh;min-height:100dvh;background:#F5F7FC}
+#root{background:#F5F7FC;min-height:100vh;min-height:100dvh;overflow-x:hidden;max-width:100vw}
+.app{display:flex;min-height:100vh;min-height:100dvh;background:#F5F7FC;overflow-x:hidden;max-width:100vw}
 /* SIDEBAR */
 .sidebar{width:210px;min-width:210px;background:#0B1F4B;display:flex;flex-direction:column;position:fixed;top:0;left:0;height:100vh;height:100dvh;overflow-y:auto;z-index:200;transition:transform 0.2s}
 .main{flex:1;margin-left:210px;padding:20px;min-width:0;max-width:100%;background:#F5F7FC;min-height:100vh;min-height:100dvh}
