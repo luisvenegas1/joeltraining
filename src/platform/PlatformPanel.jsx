@@ -7,7 +7,16 @@ import {
 } from "./platformLogic";
 
 // ── Utilidades de presentación ─────────────────────────────────
-const C = { navy: "#0B1F4B", blue: "#1A5DC8", ink: "#0B1F4B", muted: "#6B7A99", line: "#DDE4F0", bg: "#F4F6FB", ok: "#2E7D32", warn: "#E65100", red: "#E53935" };
+// Paleta NEUTRA (gris carbón/pizarra) para distinguir el panel de plataforma de
+// las apps de los entrenadores (que son navy/azul).
+const C = { navy: "#2A2E35", blue: "#5B6675", ink: "#1F2933", muted: "#6B7280", line: "#E3E6EA", bg: "#F4F5F7", ok: "#2E7D32", warn: "#E65100", red: "#E53935" };
+
+// Sobrescribe los botones azules de la app (.btn-p) por un gris neutro SOLO dentro
+// del panel de plataforma.
+export const PLATFORM_SCOPE_CSS = `
+.platform-scope .btn-p{background:#3A4150;border-color:#3A4150;}
+.platform-scope .btn-p:hover{background:#2A2E35;border-color:#2A2E35;}
+`;
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString("es-CR", { day: "2-digit", month: "short", year: "numeric" }) : "—");
 const money = (n, c = "CRC") => (n == null ? "—" : `${c} ${Number(n).toLocaleString("es-CR", { minimumFractionDigits: 0 })}`);
 const STATUS_COLOR = { active: C.ok, trial: C.blue, past_due: C.warn, suspended: C.red, canceled: C.muted };
@@ -139,18 +148,18 @@ export function PlatformPanel({ onLogout }) {
   const selectedOrg = orgs.find((o) => o.id === selectedOrgId) || null;
 
   return (
-    <div style={{ minHeight: "100vh", background: C.bg, fontFamily: "'Barlow',sans-serif", color: C.ink }}>
+    <div className="platform-scope" style={{ minHeight: "100vh", background: C.bg, fontFamily: "'Barlow',sans-serif", color: C.ink }}>
+      <style>{PLATFORM_SCOPE_CSS}</style>
       {/* Header */}
       <header style={{ background: C.navy, color: "#fff", padding: "12px 20px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ fontSize: 22 }}>🛰️</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <img src="/brand/tito-training.png" alt="Tito Apps" style={{ width: 36, height: 36, objectFit: "contain" }} />
           <div>
             <div style={{ fontWeight: 900, fontSize: 16, lineHeight: 1 }}>Tito Apps · Plataforma</div>
             <div style={{ fontSize: 11, color: "rgba(255,255,255,0.7)" }}>Panel global de organizaciones y suscripciones</div>
           </div>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <button className="btn btn-p" onClick={() => { window.location.href = "/"; }}>App</button>
           <button className="btn btn-g" onClick={onLogout}>Salir</button>
         </div>
       </header>

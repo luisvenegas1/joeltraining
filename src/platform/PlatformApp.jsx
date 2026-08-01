@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { STYLES } from "../johel-training.styles";
 import { usePlatformApp } from "./usePlatformApp";
-import { PlatformPanel } from "./PlatformPanel";
+import { PlatformPanel, PLATFORM_SCOPE_CSS } from "./PlatformPanel";
 import { PasswordField } from "../auth/PasswordField";
 
 // Login PROPIO del panel (branding "Tito Apps", sin branding de ningún tenant).
@@ -15,7 +15,8 @@ function PlatformLogin({ onSubmit, formError }) {
     try { await onSubmit(email.trim(), pw); } finally { setBusy(false); }
   }
   return (
-    <div className="login-page">
+    <div className="login-page platform-scope">
+      <style>{PLATFORM_SCOPE_CSS}</style>
       <div className="login-box">
         <div className="login-logo">
           <img src="/brand/tito-training.png" alt="Tito Apps" style={{ width: 96, height: 96, objectFit: "contain", display: "block", margin: "0 auto 8px" }} />
@@ -35,7 +36,8 @@ function PlatformLogin({ onSubmit, formError }) {
 
 function CenteredCard({ icon, title, detail, action }) {
   return (
-    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 12, background: "#0B1F4B", color: "#fff", padding: 24, textAlign: "center", fontFamily: "'Barlow',sans-serif" }}>
+    <div className="platform-scope" style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 12, background: "#2A2E35", color: "#fff", padding: 24, textAlign: "center", fontFamily: "'Barlow',sans-serif" }}>
+      <style>{PLATFORM_SCOPE_CSS}</style>
       <div style={{ fontSize: 42 }}>{icon}</div>
       <div style={{ fontSize: 20, fontWeight: 800 }}>{title}</div>
       <div style={{ fontSize: 13, color: "rgba(255,255,255,0.72)", maxWidth: 400 }}>{detail}</div>
@@ -49,7 +51,7 @@ export default function PlatformApp() {
   const app = usePlatformApp();
 
   if (app.status === "loading") {
-    return (<><style>{STYLES}</style><CenteredCard icon="🛰️" title="Tito Apps" detail="Verificando acceso de plataforma…" /></>);
+    return (<><style>{STYLES}</style><CenteredCard icon={<img src="/brand/tito-training.png" alt="Tito Apps" style={{ width: 72, height: 72, objectFit: "contain" }} />} title="Tito Apps" detail="Verificando acceso de plataforma…" /></>);
   }
   if (app.status === "anonymous") {
     return (<><style>{STYLES}</style><PlatformLogin onSubmit={app.signIn} formError={app.formError} /></>);
