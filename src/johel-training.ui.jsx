@@ -215,7 +215,7 @@ export function Sidebar({user,page,setPage,onLogout,isSuperadmin=false}){
           <div style={{flex:1,minWidth:0}}><div className="u-nm">{user.name.split(" ")[0]}</div><div className="u-rl">{isT?"Entrenador":"Cliente"}</div></div>
           <button className="lbtn" onClick={onLogout} title="Salir">⎋</button>
         </div>
-        <div className="footer-tm">© {new Date().getFullYear()} Johel Herrera<br/>Strength · Discipline · Evolution</div>
+        <div className="footer-tm">© {new Date().getFullYear()} {brand.footerName||brand.displayName}<br/>{brand.tagline}</div>
       </div>
     </aside>
   );

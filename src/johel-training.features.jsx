@@ -10,6 +10,7 @@ import { addMonths, calcAge, daysLeft, fmtDate, genId, getPlanStatus, getPlanSta
 import { Modal, PasswordInput, Toast, VideoModal, ExercisePicker, StretchPicker, Logo, SaveBtn } from "./johel-training.ui";
 import { updateOwnPassword, resetClientPassword, inviteClient } from "./auth/authClient";
 import { useTenant } from "./tenant/tenantContext";
+import { useBranding } from "./branding/BrandingContext";
 
 // Bloquea el ingreso de valores negativos en inputs numéricos
 const preventNegKey=e=>{if(["-","e","E","+"].includes(e.key))e.preventDefault();};
@@ -1658,6 +1659,7 @@ export function MyRoutinePage({user,routines,exercises,workoutSessions=[],setWor
 
 // ── USER PROFILE ──
 export function MyProfilePage({user,setUsers,users,measurements,workoutSessions=[],setWorkoutSessions}){
+  const brand=useBranding();
   const[tab,setTab]=useState("info");
   const[editing,setEditing]=useState(false);
   const[form,setForm]=useState({...user});
@@ -1745,7 +1747,7 @@ export function MyProfilePage({user,setUsers,users,measurements,workoutSessions=
           <span className="badge bd-gray">{user.plan?.format||"—"}</span>
           {dl!==null&&<span className={`badge ${dl<0?"bd-red":dl<=30?"bd-orange":"bd-green"}`}>{dl<0?"Vencido":`${dl} días restantes`}</span>}
         </div>
-        <div style={{fontSize:12,color:"#6B7A99"}}>Entrenador: <strong style={{color:"#0B1F4B"}}>Johel Herrera</strong></div>
+        <div style={{fontSize:12,color:"#6B7A99"}}>Entrenador: <strong style={{color:"#0B1F4B"}}>{brand.displayName}</strong></div>
       </div>
       {editing&&<Modal title="Editar mis datos" onClose={()=>setEditing(false)}>
         <div className="fr2">

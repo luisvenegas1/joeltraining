@@ -16,6 +16,11 @@ export function DocumentBranding({ branding }) {
     if (name) setMeta("apple-mobile-web-app-title", name);
     if (branding.secondaryColor) setMeta("theme-color", branding.secondaryColor);
 
+    // Colores del tenant como variables CSS (los usa el CSS: sidebar, botones, etc.)
+    const root = document.documentElement;
+    if (branding.primaryColor) root.style.setProperty("--brand-primary", branding.primaryColor);
+    if (branding.secondaryColor) root.style.setProperty("--brand-secondary", branding.secondaryColor);
+
     if (icon) {
       setLink("icon", icon);
       setLink("apple-touch-icon", icon);
