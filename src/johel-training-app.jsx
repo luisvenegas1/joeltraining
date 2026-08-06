@@ -208,10 +208,13 @@ function SupabaseApp() {
   const { load } = data;
   const ready = auth.status === "ready";
 
-  // Recuperación de contraseña: al volver del enlace del correo, Supabase emite el
-  // evento PASSWORD_RECOVERY. Interceptamos para forzar fijar la nueva clave antes
-  // de continuar a la app.
-  const [recovery, setRecovery] = useState(false);
+  // Fijar contraseña: al volver del enlace del correo (invitación de un entrenador
+  // nuevo, o recuperación de contraseña), forzamos poner la clave antes de entrar.
+  // El tipo se captura en index.html (window.__authFlow) por si el evento no llega.
+  const [recovery, setRecovery] = useState(() => {
+    const t = typeof window !== "undefined" ? window.__authFlow : null;
+    return t === "recovery" || t === "invite";
+  });
   useEffect(() => {
     const { data: sub } = sb.auth.onAuthStateChange((event) => {
       if (event === "PASSWORD_RECOVERY") setRecovery(true);
@@ -221,7 +224,7 @@ function SupabaseApp() {
 
   useEffect(() => { if (ready) load(); }, [ready, load]);
 
-  if (recovery) return (<><style>{STYLES}</style><SetNewPasswordScreen onDone={() => { setRecovery(false); }} /></>);
+  if (recovery) return (<><style>{STYLES}</style><SetNewPasswordScreen onDone={() => { try { window.__authFlow = null; } catch { /* ignore */ } setRecovery(false); }} /></>);
   if (auth.status === "loading") return <AuthLoading />;
   if (auth.status === "anonymous") return (<><style>{STYLES}</style><SupabaseLogin onSubmit={auth.signIn} formError={auth.formError} /></>);
   if (!ready) return (<><style>{STYLES}</style><AuthErrorScreen kind={auth.status} slug={tenant?.slug} onLogout={auth.signOut} /></>);

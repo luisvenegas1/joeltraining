@@ -532,9 +532,19 @@ function OrgPaymentsTab({ org, payments, busy, runAction }) {
 }
 
 function OrgBrandingTab({ org, busy, runAction }) {
+  const b = org.settings || {};
   const [f, setF] = useState({
-    displayName: org.name, tagline: "", logoUrl: "", faviconUrl: "", trainerPhotoUrl: "",
-    primary: "#1A5DC8", secondary: "#0B1F4B", whatsapp: "", instagram: "", contactEmail: "", bio: "",
+    displayName: b.displayName || org.name,
+    tagline: b.tagline || "",
+    logoUrl: b.logoUrl || "",
+    faviconUrl: b.faviconUrl || "",
+    trainerPhotoUrl: b.trainerPhotoUrl || "",
+    primary: b.primaryColor || "#1A5DC8",
+    secondary: b.secondaryColor || "#0B1F4B",
+    whatsapp: b.whatsapp || "",
+    instagram: b.instagram || "",
+    contactEmail: b.contactEmail || "",
+    bio: b.bio || "",
   });
   const set = (k) => (v) => setF((p) => ({ ...p, [k]: typeof v === "string" ? v : v?.target?.value ?? "" }));
 

@@ -32,12 +32,13 @@ export async function invokePlatform(action, payload = {}) {
 
 // Carga TODO lo necesario para el panel y lo agrega por organización.
 export async function loadPlatformData() {
-  const [orgsR, subsR, membersR, profilesR, usersR, paymentsR, auditR] = await Promise.all([
+  const [orgsR, subsR, membersR, profilesR, usersR, settingsR, paymentsR, auditR] = await Promise.all([
     sb.from("organizations").select("*").order("created_at", { ascending: false }),
     sb.from("organization_subscriptions").select("*"),
     sb.from("organization_members").select("organization_id, user_id, role"),
     sb.from("profiles").select("id, full_name"),
     sb.from("users").select("id, organization_id, role"),
+    sb.from("organization_settings").select("*"),
     sb.from("platform_payments").select("*").order("paid_at", { ascending: false }).limit(100),
     sb.from("platform_audit_log").select("*").order("created_at", { ascending: false }).limit(100),
   ]);
@@ -54,6 +55,7 @@ export async function loadPlatformData() {
 
   const profileName = new Map(profiles.map((p) => [p.id, p.full_name]));
   const subByOrg = new Map(subs.map((s) => [s.organization_id, s]));
+  const settingsByOrg = new Map((settingsR.data || []).map((s) => [s.organization_id, s]));
 
   const memberCount = new Map();
   const ownerByOrg = new Map();
@@ -69,6 +71,7 @@ export async function loadPlatformData() {
 
   const organizations = (orgsR.data || []).map((o) => {
     const s = subByOrg.get(o.id) || null;
+    const st = settingsByOrg.get(o.id) || {};
     const ownerId = ownerByOrg.get(o.id) || null;
     return {
       id: o.id,
@@ -88,6 +91,20 @@ export async function loadPlatformData() {
       ownerName: ownerId ? profileName.get(ownerId) || "—" : "—",
       memberCount: memberCount.get(o.id) || 0,
       clientCount: clientCount.get(o.id) || 0,
+      // Branding guardado (para precargar la pestaña Branding).
+      settings: {
+        displayName: st.display_name || "",
+        tagline: st.tagline || "",
+        logoUrl: st.logo_url || "",
+        faviconUrl: st.favicon_url || "",
+        trainerPhotoUrl: st.trainer_photo_url || "",
+        primaryColor: st.primary_color || "#1A5DC8",
+        secondaryColor: st.secondary_color || "#0B1F4B",
+        whatsapp: st.whatsapp || "",
+        instagram: st.instagram || "",
+        contactEmail: st.contact_email || "",
+        bio: st.bio || "",
+      },
     };
   });
 

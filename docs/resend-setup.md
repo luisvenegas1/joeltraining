@@ -38,9 +38,20 @@ Supabase → **Authentication → Email Templates**. Para cada uno, pegá el HTM
 | Confirm signup       | `docs/email-templates/confirm-signup.html` |
 | Magic Link           | `docs/email-templates/magic-link.html` |
 
-(El asunto/subject lo ponés arriba de cada template; sugerencias: "Restablecé tu
-contraseña", "Te damos la bienvenida a tu plataforma", "Confirmá tu cuenta",
-"Tu enlace de acceso".)
+**Subjects (cambialos en el campo "Subject" de cada template — vienen en inglés por
+defecto):**
+
+| Template | Subject |
+|----------|---------|
+| Invite user | Te damos la bienvenida a tu plataforma |
+| Reset Password | Restablecé tu contraseña |
+| Confirm signup | Confirmá tu cuenta |
+| Magic Link | Tu enlace de acceso |
+| Change Email Address | Confirmá tu nuevo correo |
+
+**Remitente (Sender):** en SMTP Settings, poné **Sender name** = `Tito Apps` y
+**Sender email** = `no-reply@tito-apps.com`. Si no, el correo llega con el nombre
+viejo del remitente (no tiene que ver con el branding de la app).
 
 ## Paso 4 — Redirect URLs
 Supabase → **Authentication → URL Configuration → Redirect URLs**. Agregá:

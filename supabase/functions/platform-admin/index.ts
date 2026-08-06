@@ -144,8 +144,12 @@ async function createOrganization(admin: SB, actor: string, body: SB) {
     ownerId = existingUser.id;
     steps.owner_user = "exists";
   } else {
+    // Redirigir la invitación a la URL de SU organización (por ruta, sirve para
+    // cualquier org sin DNS propio). Debe estar en la lista de Redirect URLs.
+    const appBase = Deno.env.get("APP_BASE_URL") || "https://trainingapp.tito-apps.com";
     const inv = await admin.auth.admin.inviteUserByEmail(ownerEmail, {
       data: { full_name: ownerName },
+      redirectTo: `${appBase}/${slug}`,
     });
     if (inv.error) {
       // No dejar la org "a medias" en silencio: reportar dónde falló para reintentar.

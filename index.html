@@ -20,6 +20,11 @@
 
 <body>
   <div id="root"></div>
+  <script>
+    // Captura el tipo de flujo Auth (invite/recovery) del hash ANTES de que
+    // supabase-js procese y limpie la URL, para forzar "fijar contraseña".
+    try { window.__authFlow = new URLSearchParams((location.hash || "").replace(/^#/, "")).get("type") || null; } catch (e) { window.__authFlow = null; }
+  </script>
   <script type="module" src="/src/main.jsx"></script>
 
 
