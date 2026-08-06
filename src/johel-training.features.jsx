@@ -8,7 +8,8 @@ import { useCatalogs, CATALOG_META } from "./johel-training.catalogs";
 import { usePermissions } from "./auth/PermissionsContext";
 import { addMonths, calcAge, daysLeft, fmtDate, genId, getPlanStatus, getPlanStatusFromEndDate, initials, planColor, useLS, hashPassword, generatePassword, useSaving, weekKey, weekLabel, monthKey, monthLabel, dayKey, fmtDuration, convertWeight } from "./johel-training.utils";
 import { Modal, PasswordInput, Toast, VideoModal, ExercisePicker, StretchPicker, Logo, SaveBtn } from "./johel-training.ui";
-import { updateOwnPassword, resetClientPassword } from "./auth/authClient";
+import { updateOwnPassword, resetClientPassword, inviteClient } from "./auth/authClient";
+import { useTenant } from "./tenant/tenantContext";
 
 // Bloquea el ingreso de valores negativos en inputs numéricos
 const preventNegKey=e=>{if(["-","e","E","+"].includes(e.key))e.preventDefault();};
@@ -122,7 +123,7 @@ export function CatalogEditor(){
 }
 
 // ── ADMINS PAGE ──
-export function AdminsPage(){
+export function AdminsPage({user}){
   const{readOnly}=usePermissions();
   const[admins,setAdmins]=useLS("jh_admins_v3",[]);
   const[showAdd,setShowAdd]=useState(false);
@@ -143,7 +144,7 @@ export function AdminsPage(){
       <div className="tbl-wrap"><table className="tbl">
         <thead><tr><th>Nombre</th><th>Usuario</th><th>Rol</th><th></th></tr></thead>
         <tbody>
-          <tr><td><strong>Johel Herrera</strong></td><td>@johel</td><td><span className="badge bd-blue">Principal</span></td><td></td></tr>
+          <tr><td><strong>{user?.name||"Entrenador"}</strong></td><td>{user?.username&&user.username!==user.name?"@"+user.username:"—"}</td><td><span className="badge bd-blue">Principal</span></td><td></td></tr>
           {admins.map(a=>(<tr key={a.id}>
             <td><strong>{a.name}</strong></td><td>@{a.username}</td>
             <td><span className="badge bd-gray">Administrador</span></td>
@@ -714,11 +715,12 @@ export function ClientDetail({client,setClient,measurements,setMeasurements,paym
 export function ClientsPage({users,setUsers,routines,measurements,setMeasurements,payments=[],setPayments,workoutSessions=[],setWorkoutSessions,selectedClientId}){
   const cat=useCatalogs();
   const{readOnly}=usePermissions();
+  const tenant=useTenant();
+  const orgId=tenant?.org?.id||null; // org del entrenador (para asignar el cliente)
+  const BLANK_CLIENT={name:"",username:"",email:"",phone:"",cedula:"",dob:"",height:"",notes:"",plan:{type:"Base",modality:"En Estudio",format:"Individual",startDate:"",endDate:"",price:""}};
   const[detail,setDetail]=useState(()=>selectedClientId?users.find(u=>u.id===selectedClientId)||null:null);
   const[showAdd,setShowAdd]=useState(false);
-  const[form,setForm]=useState({name:"",username:"",password:"",phone:"",email:"",cedula:"",dob:"",height:"",notes:"",plan:{type:"Base",modality:"En Estudio",format:"Individual",startDate:"",endDate:"",price:""}});
-  const[newClientPwd,setNewClientPwd]=useState("");
-  const[newClientPwdCopied,setNewClientPwdCopied]=useState(false);
+  const[form,setForm]=useState(BLANK_CLIENT);
   const[err,setErr]=useState("");
   const[deleteConfirm,setDeleteConfirm]=useState(null);
   const[toast,setToast]=useState(null);
@@ -726,26 +728,21 @@ export function ClientsPage({users,setUsers,routines,measurements,setMeasurement
   const[saving,wrap]=useSaving();
   const ERR="Hubo un problema al guardar. Intentá de nuevo en unos minutos.";
 
-  function handleGenNewClientPwd(){
-    const pwd=generatePassword();
-    setNewClientPwd(pwd);
-    setNewClientPwdCopied(false);
-    setForm(f=>({...f,password:pwd}));
-  }
-  function handleCopyNewClientPwd(){
-    navigator.clipboard.writeText(newClientPwd).then(()=>{setNewClientPwdCopied(true);setTimeout(()=>setNewClientPwdCopied(false),2000);});
-  }
-
   async function addClient(){
     if(readOnly)return; // demo_viewer: solo lectura
-    if(!form.name||!form.username||!form.password){setErr("Nombre, usuario y contraseña son requeridos. Generá una contraseña primero.");return}
-    if(users.some(u=>u.username===form.username)){setErr("Ese usuario ya existe");return}
+    if(!form.name||!form.email){setErr("Nombre y correo son requeridos.");return}
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)){setErr("El correo no es válido.");return}
+    const username=(form.username||form.email).trim();
+    if(users.some(u=>u.username===username||(u.email&&u.email.toLowerCase()===form.email.toLowerCase()))){setErr("Ya existe un cliente con ese correo/usuario.");return}
     try{
-      const hashed=await hashPassword(form.password);
-      await setUsers([...users,{id:genId(),...form,password:hashed,role:"user",payments:[]}]);
-      setForm({name:"",username:"",password:"",phone:"",email:"",cedula:"",dob:"",height:"",notes:"",plan:{type:"Base",modality:"En Estudio",format:"Individual",startDate:"",endDate:"",price:""}});
-      setNewClientPwd("");setErr("");setShowAdd(false);
-      setToast({msg:"Cliente creado correctamente",type:"ok"});
+      const id=genId();
+      // Cliente SIN contraseña: se invita por correo y él crea la suya.
+      await setUsers([...users,{id,...form,username,password:"",role:"user",organizationId:orgId,payments:[]}]);
+      const res=await inviteClient(id,form.email);
+      setForm(BLANK_CLIENT);setErr("");setShowAdd(false);
+      setToast(res.ok
+        ?{msg:"Cliente creado. Le enviamos un correo para crear su contraseña.",type:"ok"}
+        :{msg:"Cliente creado, pero no se pudo enviar la invitación: "+(res.error||"intentá reenviarla."),type:"err"});
     }catch(e){console.error(e);setErr(ERR);}
   }
 
@@ -808,21 +805,13 @@ export function ClientsPage({users,setUsers,routines,measurements,setMeasurement
       <div style={{fontSize:11,fontWeight:700,color:"#6B7A99",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Datos personales</div>
       <div className="fr2">
         <div className="fg"><label>Nombre *</label><input className="inp" value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="María García"/></div>
-        <div className="fg"><label>Usuario *</label><input className="inp" value={form.username} onChange={e=>setForm({...form,username:e.target.value})} placeholder="maria.garcia"/></div>
+        <div className="fg"><label>Correo *</label><input className="inp" type="email" value={form.email} onChange={e=>setForm({...form,email:e.target.value})} placeholder="maria@correo.com"/></div>
         <div className="fg" style={{gridColumn:"1/-1"}}>
-          <label>Contraseña *</label>
-          <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap",marginTop:4}}>
-            <button type="button" className="btn btn-s btn-sm" onClick={handleGenNewClientPwd}>🔑 Generar contraseña</button>
-            {newClientPwd&&(<>
-              <span style={{fontFamily:"monospace",fontWeight:700,fontSize:15,background:"#F0F4FF",border:"1px solid #C7D6F7",borderRadius:6,padding:"4px 10px",letterSpacing:2}}>{newClientPwd}</span>
-              <button type="button" className="btn btn-g btn-sm" onClick={handleCopyNewClientPwd}>{newClientPwdCopied?"✅ Copiado":"📋 Copiar"}</button>
-            </>)}
-          </div>
-          {!newClientPwd&&<div style={{fontSize:11,color:"#9E9E9E",marginTop:4}}>Generá una contraseña para enviársela al cliente.</div>}
+          <div style={{fontSize:12,color:"#1A5DC8",background:"#EEF3FF",border:"1px solid #C7D6F7",borderRadius:8,padding:"8px 12px"}}>📧 Al crear el cliente, le enviamos un correo para que <strong>cree su propia contraseña</strong>. Ya no se usan contraseñas temporales.</div>
         </div>
+        <div className="fg"><label>Usuario (opcional)</label><input className="inp" value={form.username} onChange={e=>setForm({...form,username:e.target.value})} placeholder="se usa el correo si lo dejás vacío"/></div>
         <div className="fg"><label>Cédula</label><input className="inp" value={form.cedula} onChange={e=>setForm({...form,cedula:e.target.value})}/></div>
         <div className="fg"><label>Teléfono</label><input className="inp" value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})}/></div>
-        <div className="fg"><label>Correo</label><input className="inp" type="email" value={form.email} onChange={e=>setForm({...form,email:e.target.value})}/></div>
         <div className="fg"><label>Fecha de nacimiento</label><input className="inp" type="date" value={form.dob} onChange={e=>setForm({...form,dob:e.target.value})}/></div>
         <div className="fg"><label>Estatura (cm)</label><input className="inp" type="number" min={0} onKeyDown={preventNegKey} value={form.height} onChange={e=>setForm({...form,height:stripNeg(e.target.value)})}/></div>
       </div>

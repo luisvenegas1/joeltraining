@@ -118,6 +118,26 @@ export async function resetClientPassword(clientId, newPassword) {
   }
 }
 
+// El ENTRENADOR invita a un CLIENTE por correo. Pasa por la Edge Function segura:
+// crea/enlaza la cuenta Auth del cliente y le manda un correo para que cree su
+// contraseña. Devuelve { ok } o { ok:false, error }.
+export async function inviteClient(clientId, email) {
+  try {
+    const { data, error } = await sb.functions.invoke("invite-client", {
+      body: { client_id: clientId, email },
+    });
+    if (error) {
+      let detail = error.message;
+      try { const b = await error.context?.json?.(); if (b?.error) detail = b.detail ? `${b.error}: ${b.detail}` : b.error; } catch { /* ignore */ }
+      return { ok: false, error: detail };
+    }
+    if (data?.error) return { ok: false, error: data.detail ? `${data.error}: ${data.detail}` : data.error };
+    return { ok: true, data };
+  } catch (e) {
+    return { ok: false, error: String(e?.message || e) };
+  }
+}
+
 // Cliente (users) vinculado al usuario Auth actual (o null), en formato app.
 // Bajo RLS, esta consulta devuelve SOLO la fila propia del cliente.
 export async function loadClientProfile() {
