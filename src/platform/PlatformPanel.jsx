@@ -3,8 +3,12 @@ import { loadPlatformData, invokePlatform, existingSlugsOf, paymentsForOrg, audi
 import { uploadLogo, uploadTrainerPhoto } from "../storage/storage";
 import {
   validateNewOrg, validatePayment, bucketOrganizations, expiringSubscriptions,
-  statusLabel, canSuspendOrg, SUB_STATUSES, PAYMENT_METHODS,
+  statusLabel, canSuspendOrg, SUB_STATUSES, PAYMENT_METHODS, PLATFORM_PLANS,
 } from "./platformLogic";
+
+// Normaliza el slug EN VIVO mientras se escribe: minúsculas, espacios→guion, solo
+// [a-z0-9-]. No recorta guiones al borde (para poder escribir "a-b" fluido).
+const slugifyLive = (v) => String(v || "").toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
 
 // ── Utilidades de presentación ─────────────────────────────────
 // Paleta NEUTRA (gris carbón/pizarra) para distinguir el panel de plataforma de
@@ -443,7 +447,11 @@ function OrgSubscriptionTab({ org, busy, runAction }) {
           {SUB_STATUSES.map((s) => <option key={s} value={s} disabled={isDemo && ["suspended", "canceled", "past_due"].includes(s)}>{statusLabel(s)}</option>)}
         </select>
       </Field>
-      <Field label="Plan"><input className="inp" value={plan} onChange={(e) => setPlan(e.target.value)} /></Field>
+      <Field label="Plan">
+        <select className="inp" value={plan} onChange={(e) => setPlan(e.target.value)}>
+          {[...new Set([plan, ...PLATFORM_PLANS])].filter(Boolean).map((p) => <option key={p} value={p}>{p}</option>)}
+        </select>
+      </Field>
       <Field label="Vence (fin de periodo)"><input className="inp" type="date" value={periodEnd} onChange={(e) => setPeriodEnd(e.target.value)} /></Field>
       <Field label="Gracia hasta (opcional)"><input className="inp" type="date" value={grace} onChange={(e) => setGrace(e.target.value)} /></Field>
       <Field label="Notas administrativas internas"><textarea className="inp" rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} /></Field>
@@ -662,13 +670,17 @@ function NewOrgModal({ existingSlugs, busy, onClose, onCreate }) {
         </div>
         <Field label="Nombre de la organización (interno)"><input className="inp" value={f.name} onChange={set("name")} placeholder="Juan Fitness" />{errors.name && <div className="err">⚠ {errors.name}</div>}</Field>
         <Field label="Nombre comercial (visible)"><input className="inp" value={f.displayName} onChange={set("displayName")} placeholder="Juan Fitness Studio" /></Field>
-        <Field label="Slug (sugerido, editable, único)"><input className="inp" value={f.slug} onChange={set("slug")} placeholder="juan-fitness" />{errors.slug && <div className="err">⚠ {errors.slug}</div>}</Field>
+        <Field label="Slug (sugerido, editable, único)"><input className="inp" value={f.slug} onChange={(e) => setF((p) => ({ ...p, slug: slugifyLive(e.target.value) }))} placeholder="juan-fitness" autoCapitalize="none" autoCorrect="off" spellCheck={false} /><div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>URL: {(f.slug || "tu-slug")}.tito-apps.com</div>{errors.slug && <div className="err">⚠ {errors.slug}</div>}</Field>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <Field label="Nombre del owner"><input className="inp" value={f.ownerName} onChange={set("ownerName")} />{errors.ownerName && <div className="err">⚠ {errors.ownerName}</div>}</Field>
           <Field label="Correo del owner"><input className="inp" type="email" value={f.ownerEmail} onChange={set("ownerEmail")} placeholder="juan@correo.com" />{errors.ownerEmail && <div className="err">⚠ {errors.ownerEmail}</div>}</Field>
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <Field label="Plan inicial"><input className="inp" value={f.plan} onChange={set("plan")} /></Field>
+          <Field label="Plan inicial">
+            <select className="inp" value={f.plan} onChange={set("plan")}>
+              {PLATFORM_PLANS.map((p) => <option key={p} value={p}>{p}</option>)}
+            </select>
+          </Field>
           <Field label="Estado inicial">
             <select className="inp" value={f.initialStatus} onChange={set("initialStatus")}><option value="trial">trial</option><option value="active">active</option></select>
           </Field>

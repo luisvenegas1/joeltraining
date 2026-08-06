@@ -6,6 +6,7 @@ import { BrandingContext } from "../branding/BrandingContext";
 import { DocumentBranding } from "../branding/DocumentBranding";
 import { TenantContext } from "./tenantContext";
 import { isPlatformPath } from "../platform/platformRoute";
+import { isLegalPath } from "../legal/legalRoute";
 
 // El multi-tenant se activa con VITE_MULTITENANT=on (tras migraciones + Auth).
 // Mientras esté apagado, la app se comporta EXACTAMENTE como hoy (Johel legacy).
@@ -24,9 +25,10 @@ export function TenantProvider({ children }) {
 }
 
 function MultiTenant({ children }) {
-  // El Panel de Plataforma (/platform) NO pertenece a ningún tenant: no se resuelve
-  // organización ni se bloquea. Su acceso se valida aparte contra platform_admins.
-  const onPlatform = isPlatformPath(window.location.pathname);
+  // El Panel de Plataforma (/platform) y las páginas legales (/terminos,
+  // /privacidad) NO pertenecen a ningún tenant: no se resuelve organización ni se
+  // bloquea. (El panel valida su acceso aparte contra platform_admins.)
+  const onPlatform = isPlatformPath(window.location.pathname) || isLegalPath(window.location.pathname);
   const [state, setState] = useState({ loading: true });
 
   useEffect(() => {

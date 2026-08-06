@@ -16,6 +16,10 @@ export const SUB_STATUSES = ["trial", "active", "past_due", "suspended", "cancel
 // Métodos de pago admitidos (Stripe queda para el futuro).
 export const PAYMENT_METHODS = ["manual", "sinpe", "transfer", "cash", "card", "stripe", "other"];
 
+// Planes de suscripción de la PLATAFORMA (lo que paga el entrenador). Editá esta
+// lista para que coincida con tu pricing real.
+export const PLATFORM_PLANS = ["base", "pro", "premium"];
+
 // Pasos del alta de una organización (para idempotencia y reintentos).
 export const CREATION_STEPS = ["organization", "owner_user", "membership", "subscription", "branding"];
 

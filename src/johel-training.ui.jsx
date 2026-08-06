@@ -32,6 +32,7 @@ export function AppFooter(){
   return(
     <div className="main-footer">
       © {year} {brand.footerName||brand.displayName} · {brand.tagline} · Todos los derechos reservados<br/>
+      <a href="/terminos" style={{color:"inherit",textDecoration:"underline"}}>Términos</a> · <a href="/privacidad" style={{color:"inherit",textDecoration:"underline"}}>Privacidad</a><br/>
       · Desarrollado por <a href="https://wa.me/50688238325" target="_blank" rel="noreferrer" style={{color:"inherit",textDecoration:"underline",fontWeight:700}}>Luis Diego Venegas</a>
       <span style={{opacity:0.5,marginLeft:8}}>· v1.0.0</span>
     </div>

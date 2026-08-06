@@ -76,6 +76,9 @@ export function SupabaseLogin({ onSubmit, formError }) {
           </form>
           <button type="button" onClick={() => setForgot(false)} style={{ background: "none", border: "none", color: "#6B7A99", fontSize: 12, fontWeight: 700, cursor: "pointer", marginTop: 12, display: "block", width: "100%", textAlign: "center" }}>← Volver al inicio de sesión</button>
         </>)}
+        <div style={{ marginTop: 16, fontSize: 11, color: "rgba(0,0,0,0.4)", textAlign: "center" }}>
+          Al ingresar aceptás los <a href="/terminos" style={{ color: "inherit", textDecoration: "underline" }}>Términos</a> y la <a href="/privacidad" style={{ color: "inherit", textDecoration: "underline" }}>Privacidad</a>.
+        </div>
       </div>
     </div>
   );
