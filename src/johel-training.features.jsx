@@ -743,7 +743,7 @@ export function ClientsPage({users,setUsers,routines,measurements,setMeasurement
       setToast(res.ok
         ?{msg:"Cliente creado. Le enviamos un correo para crear su contraseña.",type:"ok"}
         :{msg:"Cliente creado, pero no se pudo enviar la invitación: "+(res.error||"intentá reenviarla."),type:"err"});
-    }catch(e){console.error(e);setErr(ERR);}
+    }catch(e){console.error(e);setErr("No se pudo crear el cliente: "+(e?.message||e?.details||ERR));}
   }
 
   // Chokepoint de persistencia de ClientDetail (info/plan/deshabilitar): bloquea demo.
