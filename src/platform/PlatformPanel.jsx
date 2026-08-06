@@ -24,6 +24,8 @@ export const PLATFORM_SCOPE_CSS = `
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString("es-CR", { day: "2-digit", month: "short", year: "numeric" }) : "—");
 const money = (n, c = "CRC") => (n == null ? "—" : `${c} ${Number(n).toLocaleString("es-CR", { minimumFractionDigits: 0 })}`);
 const STATUS_COLOR = { active: C.ok, trial: C.blue, past_due: C.warn, suspended: C.red, canceled: C.muted };
+// URL de la app de una organización (por ruta; sirve para cualquier org sin DNS propio).
+const orgAppUrl = (slug) => `https://trainingapp.tito-apps.com/${slug}`;
 const card = { background: "#fff", border: `1px solid ${C.line}`, borderRadius: 14, padding: 18 };
 
 function Badge({ status }) {
@@ -323,7 +325,7 @@ function OrgsTable({ orgs, busy, onOpen, onNewOrg, runAction }) {
           <tbody>
             {filtered.map((o) => (
               <tr key={o.id} style={{ borderTop: `1px solid ${C.line}` }}>
-                <td style={{ padding: "8px", fontWeight: 800 }}>{o.name}{o.tenantType === "demo" && <span style={{ marginLeft: 6, fontSize: 10, color: "#7B1FA2", fontWeight: 800 }}>DEMO</span>}</td>
+                <td style={{ padding: "8px", fontWeight: 800 }}><a href={orgAppUrl(o.slug)} target="_blank" rel="noreferrer" title="Abrir la app de esta organización" style={{ color: C.blue, textDecoration: "none" }}>{o.name} ↗</a>{o.tenantType === "demo" && <span style={{ marginLeft: 6, fontSize: 10, color: "#7B1FA2", fontWeight: 800 }}>DEMO</span>}</td>
                 <td style={{ padding: "8px", color: C.muted }}>{o.slug}</td>
                 <td style={{ padding: "8px" }}>{o.ownerName}</td>
                 <td style={{ padding: "8px", color: C.muted }}>{o.tenantType}</td>
@@ -360,7 +362,7 @@ function OrgDetail({ org, data, busy, onBack, runAction, allSlugs }) {
       <div style={{ ...card, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
         <div>
           <div style={{ fontSize: 20, fontWeight: 900 }}>{org.name} {org.tenantType === "demo" && <span style={{ fontSize: 11, color: "#7B1FA2" }}>DEMO</span>}</div>
-          <div style={{ color: C.muted, fontSize: 13 }}>/{org.slug} · Owner: {org.ownerName} · {org.memberCount} miembros · {org.clientCount} clientes</div>
+          <div style={{ color: C.muted, fontSize: 13 }}><a href={orgAppUrl(org.slug)} target="_blank" rel="noreferrer" title="Abrir la app de esta organización" style={{ color: C.blue, textDecoration: "none", fontWeight: 700 }}>/{org.slug} ↗</a> · Owner: {org.ownerName} · {org.memberCount} miembros · {org.clientCount} clientes</div>
         </div>
         <Badge status={org.subStatus} />
       </div>
@@ -531,9 +533,18 @@ function OrgPaymentsTab({ org, payments, busy, runAction }) {
   );
 }
 
+// Mapa campo del form → columna de BD (para el guardado por diferencias).
+const BRANDING_FIELDS = {
+  displayName: "display_name", tagline: "tagline", logoUrl: "logo_url",
+  faviconUrl: "favicon_url", trainerPhotoUrl: "trainer_photo_url",
+  primary: "primary_color", secondary: "secondary_color",
+  whatsapp: "whatsapp", instagram: "instagram", contactEmail: "contact_email", bio: "bio",
+};
+
 function OrgBrandingTab({ org, busy, runAction }) {
   const b = org.settings || {};
-  const [f, setF] = useState({
+  // Valores originales cargados (para comparar y guardar SOLO lo que cambió).
+  const init = {
     displayName: b.displayName || org.name,
     tagline: b.tagline || "",
     logoUrl: b.logoUrl || "",
@@ -545,24 +556,21 @@ function OrgBrandingTab({ org, busy, runAction }) {
     instagram: b.instagram || "",
     contactEmail: b.contactEmail || "",
     bio: b.bio || "",
-  });
+  };
+  const [f, setF] = useState(init);
+  const [note, setNote] = useState(null);
   const set = (k) => (v) => setF((p) => ({ ...p, [k]: typeof v === "string" ? v : v?.target?.value ?? "" }));
 
   function save() {
-    runAction("update_branding", {
-      organization_id: org.id,
-      display_name: f.displayName,
-      tagline: f.tagline || null,
-      logo_url: f.logoUrl || null,
-      favicon_url: f.faviconUrl || null,
-      trainer_photo_url: f.trainerPhotoUrl || null,
-      primary_color: f.primary,
-      secondary_color: f.secondary,
-      whatsapp: f.whatsapp || null,
-      instagram: f.instagram || null,
-      contact_email: f.contactEmail || null,
-      bio: f.bio || null,
-    }, "Branding actualizado.");
+    // Solo enviar los campos que realmente cambiaron respecto a lo cargado.
+    const payload = { organization_id: org.id };
+    let changed = 0;
+    for (const [fk, dbk] of Object.entries(BRANDING_FIELDS)) {
+      if (f[fk] !== init[fk]) { payload[dbk] = f[fk] === "" ? null : f[fk]; changed++; }
+    }
+    if (!changed) { setNote("No hay cambios para guardar."); return; }
+    setNote(null);
+    runAction("update_branding", payload, "Branding actualizado.");
   }
 
   return (
@@ -584,6 +592,7 @@ function OrgBrandingTab({ org, busy, runAction }) {
         <Field label="Correo de contacto"><input className="inp" type="email" value={f.contactEmail} onChange={set("contactEmail")} /></Field>
         <Field label="Bio / descripción"><textarea className="inp" rows={3} value={f.bio} onChange={set("bio")} /></Field>
         <button className="btn btn-p" disabled={busy} onClick={save}>Guardar branding</button>
+        {note && <div style={{ fontSize: 12, color: C.muted, marginTop: 6 }}>{note}</div>}
       </div>
       <div style={{ ...card, flex: "1 1 240px", alignSelf: "flex-start" }}>
         <div style={{ fontWeight: 800, marginBottom: 8, fontSize: 13 }}>Vista previa</div>
