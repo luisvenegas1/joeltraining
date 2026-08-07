@@ -183,10 +183,14 @@ export function Sidebar({user,page,setPage,onLogout,isSuperadmin=false}){
     {id:"clients",icon:"👥",label:"Clientes"},
     {id:"routines",icon:"📋",label:"Rutinas"},
     {id:"exercises",icon:"🏋️",label:"Ejercicios"},
+    {id:"reminders",icon:"🔔",label:"Recordatorios"},
     {id:"admins",icon:"🔑",label:"Admins"},
+    {id:"guide",icon:"📖",label:"Guía"},
+    {id:"about",icon:"✨",label:"Acerca de"},
   ]:[
     {id:"my-routine",icon:"📋",label:"Rutina"},
     {id:"my-profile",icon:"👤",label:"Perfil"},
+    {id:"about",icon:"✨",label:"Acerca de"},
   ];
   const ini=initials(user.name);
   const photoKey="jh_photo_"+user.id;

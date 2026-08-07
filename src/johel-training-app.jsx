@@ -20,6 +20,11 @@ import { useSupabaseAuth } from "./auth/useSupabaseAuth";
 import { AuthLoading, SupabaseLogin, AuthErrorScreen, DemoBanner, SuspendedScreen, BillingScreen, SetNewPasswordScreen } from "./auth/AuthScreens";
 import { sb } from "./supabase";
 import { PermissionsContext } from "./auth/PermissionsContext";
+import { planFeatures } from "./plans/entitlements";
+import { AboutPage } from "./onboarding/AboutPage";
+import { GuidePage } from "./onboarding/GuidePage";
+import { RemindersPage } from "./reminders/RemindersPage";
+import { OnboardingTour } from "./onboarding/OnboardingTour";
 
 // Modo de autenticación. Por defecto LEGACY: la app se comporta EXACTAMENTE como
 // hoy. VITE_AUTH_MODE=supabase activa el login por Supabase Auth (no se elimina el
@@ -138,18 +143,22 @@ function useAppData() {
 }
 
 // ── Shell autenticado (idéntico para ambos modos) ───────────────
-function MainApp({ currentUser, capabilityRole = "owner", onLogout, data, isSuperadmin = false }) {
+function MainApp({ currentUser, capabilityRole = "owner", onLogout, data, isSuperadmin = false, plan = "premium" }) {
   const [page, setPage] = useState(currentUser.role === "trainer" ? "dashboard" : "my-routine");
   const isT = currentUser.role === "trainer";
   const liveUser = isT ? currentUser : (data.users.find((u) => u.id === currentUser.id) || currentUser);
   const readOnly = capabilityRole === "demo_viewer";
+  const features = planFeatures(plan);
 
   let content;
-  if (isT) {
+  if (page === "about") content = <AboutPage />;
+  else if (page === "guide") content = <GuidePage isTrainer={isT} plan={plan} />;
+  else if (isT) {
     if (page === "dashboard") content = <Dashboard users={data.users} routines={data.routines} />;
     else if (page === "clients") content = <ClientsPage users={data.users} setUsers={data.setUsers} routines={data.routines} measurements={data.measurements} setMeasurements={data.setMeasurements} payments={data.payments} setPayments={data.setPayments} workoutSessions={data.workoutSessions} setWorkoutSessions={data.setWorkoutSessions} exercises={data.exercises} selectedClientId={null} />;
     else if (page === "routines") content = <RoutinesPage routines={data.routines} setRoutines={data.setRoutines} users={data.users} setUsers={data.setUsers} exercises={data.exercises} saveRoutineAssignments={data.saveRoutineAssignments} />;
     else if (page === "exercises") content = <ExercisesPage exercises={data.exercises} setExercises={data.setExercises} />;
+    else if (page === "reminders") content = <RemindersPage />;
     else if (page === "admins") content = <AdminsPage user={liveUser} />;
   } else {
     if (page === "my-routine") content = <MyRoutinePage user={liveUser} routines={data.routines} exercises={data.exercises} workoutSessions={data.workoutSessions} setWorkoutSessions={data.setWorkoutSessions} />;
@@ -158,12 +167,13 @@ function MainApp({ currentUser, capabilityRole = "owner", onLogout, data, isSupe
 
   return (
     <CatalogContext.Provider value={data.catalogValue}>
-      <PermissionsContext.Provider value={{ role: capabilityRole, readOnly }}>
+      <PermissionsContext.Provider value={{ role: capabilityRole, readOnly, plan, features }}>
         <style>{STYLES}</style>
         <div className="app">
           <Sidebar user={liveUser} page={page} setPage={setPage} onLogout={onLogout} isSuperadmin={isSuperadmin} />
           <main className="main">
             {readOnly && <DemoBanner />}
+            {isT && !readOnly && <OnboardingTour onGo={setPage} clientsCount={data.users.filter((u) => u.role !== "trainer").length} routinesCount={data.routines.length} />}
             {content}
             <AppFooter />
           </main>
@@ -234,7 +244,7 @@ function SupabaseApp() {
   if (auth.orgAccess === "billing") return (<><style>{STYLES}</style><BillingScreen subscription={auth.subscription} onLogout={auth.signOut} /></>);
   if (data.loading) return <LoadingScreen />;
   if (data.dbError) return <DbErrorScreen msg={data.dbError} />;
-  return <MainApp currentUser={auth.appUser} capabilityRole={auth.capabilityRole} onLogout={auth.signOut} data={data} isSuperadmin={auth.isSuperadmin} />;
+  return <MainApp currentUser={auth.appUser} capabilityRole={auth.capabilityRole} onLogout={auth.signOut} data={data} isSuperadmin={auth.isSuperadmin} plan={auth.subscription?.plan || "base"} />;
 }
 
 export default function App() {

@@ -1,0 +1,39 @@
+import { describe, it, expect } from "vitest";
+import { hasFeature, planFeatures, normalizePlan, minPlanFor, PLANS } from "./entitlements";
+
+describe("entitlements — plan → features", () => {
+  it("Base: workouts sí; mediciones/analytics/recordatorios no", () => {
+    expect(hasFeature("base", "workouts")).toBe(true);
+    expect(hasFeature("base", "measurements")).toBe(false);
+    expect(hasFeature("base", "analytics")).toBe(false);
+    expect(hasFeature("base", "payment_reminders")).toBe(false);
+  });
+  it("Pro: agrega mediciones y analytics; recordatorios no", () => {
+    expect(hasFeature("pro", "measurements")).toBe(true);
+    expect(hasFeature("pro", "analytics")).toBe(true);
+    expect(hasFeature("pro", "payment_reminders")).toBe(false);
+  });
+  it("Premium: todo, incluidos recordatorios", () => {
+    expect(hasFeature("premium", "measurements")).toBe(true);
+    expect(hasFeature("premium", "analytics")).toBe(true);
+    expect(hasFeature("premium", "payment_reminders")).toBe(true);
+  });
+  it("plan desconocido o vacío → base", () => {
+    expect(normalizePlan("")).toBe("base");
+    expect(normalizePlan("gold")).toBe("base");
+    expect(hasFeature(null, "measurements")).toBe(false);
+    expect(planFeatures("gold").workouts).toBe(true);
+  });
+  it("minPlanFor devuelve el plan mínimo de cada feature", () => {
+    expect(minPlanFor("workouts")).toBe("base");
+    expect(minPlanFor("measurements")).toBe("pro");
+    expect(minPlanFor("payment_reminders")).toBe("premium");
+  });
+  it("Premium ⊇ Pro ⊇ Base (monótono en features clave)", () => {
+    for (const feat of ["workouts", "measurements", "analytics", "payment_reminders"]) {
+      const vals = PLANS.map((p) => hasFeature(p, feat));
+      // una vez que se activa, no se desactiva en planes superiores
+      for (let i = 1; i < vals.length; i++) if (vals[i - 1]) expect(vals[i]).toBe(true);
+    }
+  });
+});

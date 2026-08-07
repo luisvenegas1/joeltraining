@@ -1,11 +1,11 @@
 {
-  "name": "Tito Training",
-  "short_name": "Tito Training",
-  "description": "Tu plataforma de entrenamiento",
+  "name": "TrainSync",
+  "short_name": "TrainSync",
+  "description": "TrainSync by Tito Apps — plataforma de entrenamiento para entrenadores y clientes",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0B3D2E",
-  "theme_color": "#0B3D2E",
+  "background_color": "#0B1F4B",
+  "theme_color": "#0B1F4B",
   "orientation": "portrait",
   "icons": [
     {

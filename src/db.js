@@ -30,6 +30,8 @@ export function dbToUser(u) {
     avatarUrl: u.avatar_url || "",
     organizationId: u.organization_id || null,
     disabled: u.disabled || false,
+    reminderEnabled: u.reminder_enabled !== false, // default true
+
     plan: {
       type: u.plan_type || "",
       modality: u.plan_modality || "",
@@ -582,6 +584,31 @@ export async function deleteWorkoutSession(id) {
 
 // Devuelve un objeto { category: [labels...] } con las categorías que
 // existen en la BD. Las que no existan usan los valores por defecto del código.
+// ── Recordatorios de pago (feature Premium) ────────────────────
+// Activa/desactiva el recordatorio de un cliente puntual (solo esa columna).
+export async function setClientReminder(clientId, enabled) {
+  const { error } = await sb.from("users").update({ reminder_enabled: !!enabled }).eq("id", clientId);
+  if (error) throw error;
+}
+
+// Config de recordatorios de la organización (en organization_settings).
+export async function getOrgReminderConfig(orgId) {
+  if (!orgId) return { enabled: false, daysBefore: 3 };
+  const { data } = await sb
+    .from("organization_settings")
+    .select("reminders_enabled, reminders_days_before")
+    .eq("organization_id", orgId)
+    .maybeSingle();
+  return { enabled: !!data?.reminders_enabled, daysBefore: data?.reminders_days_before ?? 3 };
+}
+
+export async function setOrgReminderConfig(orgId, { enabled, daysBefore }) {
+  const { error } = await sb
+    .from("organization_settings")
+    .upsert({ organization_id: orgId, reminders_enabled: !!enabled, reminders_days_before: Math.max(0, Math.min(30, Number(daysBefore) || 3)) }, { onConflict: "organization_id" });
+  if (error) throw error;
+}
+
 export async function getCatalogs() {
   const { data, error } = await sb
     .from("catalogs")

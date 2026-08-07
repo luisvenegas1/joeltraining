@@ -9,8 +9,10 @@ import { usePermissions } from "./auth/PermissionsContext";
 import { addMonths, calcAge, daysLeft, fmtDate, genId, getPlanStatus, getPlanStatusFromEndDate, initials, planColor, useLS, hashPassword, generatePassword, useSaving, weekKey, weekLabel, monthKey, monthLabel, dayKey, fmtDuration, convertWeight } from "./johel-training.utils";
 import { Modal, PasswordInput, Toast, VideoModal, ExercisePicker, StretchPicker, Logo, SaveBtn } from "./johel-training.ui";
 import { updateOwnPassword, resetClientPassword, inviteClient } from "./auth/authClient";
+import { setClientReminder } from "./db";
 import { useTenant } from "./tenant/tenantContext";
 import { useBranding } from "./branding/BrandingContext";
+import { PlanGate } from "./plans/PlanGate";
 
 // Bloquea el ingreso de valores negativos en inputs numéricos
 const preventNegKey=e=>{if(["-","e","E","+"].includes(e.key))e.preventDefault();};
@@ -545,6 +547,7 @@ function ConfirmPwdPopup({pwd,onConfirm,onCancel}){
 function EditClientModal({cForm,setCForm,onSave,onClose,saving=false}){
   const[genPwd,setGenPwd]=useState("");
   const[showConfirm,setShowConfirm]=useState(false);
+  const{features}=usePermissions();
 
   function handleGenerate(){
     const pwd=generatePassword();
@@ -571,6 +574,12 @@ function EditClientModal({cForm,setCForm,onSave,onClose,saving=false}){
       <div className="fg"><label>Estatura (cm)</label><input className="inp" type="number" min={0} onKeyDown={preventNegKey} value={cForm.height||""} onChange={e=>setCForm({...cForm,height:stripNeg(e.target.value)})}/></div>
     </div>
     <div className="fg"><label>Notas internas</label><textarea className="ta" value={cForm.notes||""} onChange={e=>setCForm({...cForm,notes:e.target.value})}/></div>
+    {features?.payment_reminders&&<div style={{borderTop:"1px solid #DDE4F0",paddingTop:12,marginTop:4}}>
+      <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}>
+        <input type="checkbox" checked={cForm.reminderEnabled!==false} onChange={e=>setCForm({...cForm,reminderEnabled:e.target.checked})} style={{width:16,height:16}}/>
+        <span style={{fontSize:13,fontWeight:600,color:"#0B1F4B"}}>🔔 Enviar recordatorio de pago a este cliente</span>
+      </label>
+    </div>}
     <div style={{borderTop:"1px solid #DDE4F0",paddingTop:12,marginTop:4}}>
       <div style={{fontSize:11,fontWeight:700,color:"#6B7A99",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>Contraseña</div>
       <div style={{fontSize:12,color:"#6B7A99",marginBottom:8}}>Generá una nueva contraseña para enviarle al cliente (cliente nuevo o contraseña olvidada).</div>
@@ -602,6 +611,10 @@ export function ClientDetail({client,setClient,measurements,setMeasurements,paym
       const newPwd=updated._newPlainPwd;
       delete updated._newPlainPwd;
       await setClient({...updated}); // no tocamos updated.password (columna legacy)
+      // El opt-out de recordatorios se guarda por separado (columna dedicada; tolerante si aún no existe la migración 0026).
+      if(updated.reminderEnabled!==client.reminderEnabled){
+        try{await setClientReminder(client.id,updated.reminderEnabled!==false);}catch(e){console.warn("setClientReminder:",e?.message||e);}
+      }
       if(newPwd){
         const res=await resetClientPassword(client.id,newPwd);
         if(!res.ok){
@@ -705,8 +718,8 @@ export function ClientDetail({client,setClient,measurements,setMeasurements,paym
       try{await setWorkoutSessions(workoutSessions.filter(s=>s.id!==id));setToast({msg:"Entrenamiento eliminado",type:"ok"});}
       catch(e){console.error(e);setToast({msg:ERR,type:"err"});}
     }:undefined}/>}
-    {tab==="measurements"&&<MeasurementsTab client={client} measurements={measurements} setMeasurements={setMeasurements}/>}
-    {tab==="history"&&<HistoryTab client={client} measurements={measurements} setMeasurements={setMeasurements}/>}
+    {tab==="measurements"&&<PlanGate feature="measurements"><MeasurementsTab client={client} measurements={measurements} setMeasurements={setMeasurements}/></PlanGate>}
+    {tab==="history"&&<PlanGate feature="analytics"><HistoryTab client={client} measurements={measurements} setMeasurements={setMeasurements}/></PlanGate>}
 
     {showEditInfo&&<EditClientModal cForm={cForm} setCForm={setCForm} onSave={()=>wrap(saveInfo)} saving={saving} onClose={()=>setShowEditInfo(false)}/>}
   </div>);
@@ -1779,16 +1792,16 @@ export function MyProfilePage({user,setUsers,users,measurements,workoutSessions=
       }}/>
     </div>)}
 
-    {tab==="measurements"&&(<div>
+    {tab==="measurements"&&(<PlanGate feature="measurements"><div>
       <div style={{fontWeight:700,fontSize:13,marginBottom:10}}>Última medición{latest?` — ${fmtDate(latest.date)}`:""}</div>
       {latest?(<div className="m-grid">{MEASUREMENT_FIELDS.map(f=>{const v=latest[f.key];return v?(<div key={f.key} className="m-card"><div className="m-lbl">{f.label}</div><div className="m-val">{v}<span className="m-unit"> {f.unit}</span></div></div>):null;})}</div>):<div className="empty"><div className="ico">📊</div><p>Sin mediciones registradas aún</p></div>}
-    </div>)}
+    </div></PlanGate>)}
 
-    {tab==="history"&&(<div>
+    {tab==="history"&&(<PlanGate feature="analytics"><div>
       {clientMsAsc.length>1&&<MultiChart clientMs={clientMsAsc}/>}
       <div style={{fontWeight:700,fontSize:13,marginBottom:10}}>Historial ({clientMsAsc.length})</div>
       {clientMsDesc.map(m=>(<div key={m.id} className="hist-row"><div className="hist-date">{fmtDate(m.date)}</div><div className="hist-vals">{MEASUREMENT_FIELDS.map(f=>m[f.key]&&<span key={f.key} className="hist-val">{f.label.split(" ")[0]}: {m[f.key]}{f.unit}</span>)}</div></div>))}
       {clientMsAsc.length===0&&<div className="empty"><div className="ico">📈</div><p>Sin historial</p></div>}
-    </div>)}
+    </div></PlanGate>)}
   </div>);
 }
