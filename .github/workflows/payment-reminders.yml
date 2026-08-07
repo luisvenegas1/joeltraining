@@ -1,0 +1,32 @@
+name: Recordatorios de pago (TrainSync)
+
+# Dispara la Edge Function send-payment-reminders una vez al día.
+# La función decide a quién enviar (orgs Premium con recordatorios activos) y
+# evita duplicados. Acá solo la "despertamos" con el secreto.
+
+on:
+  schedule:
+    # 13:00 UTC = 7:00 a.m. en Costa Rica (UTC-6). Ajustá la hora si querés.
+    - cron: "0 13 * * *"
+  # Permite correrlo a mano desde la pestaña Actions de GitHub (botón "Run workflow").
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Correr sin enviar correos (1 = sí)"
+        required: false
+        default: "0"
+
+jobs:
+  send-reminders:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Llamar a la función de recordatorios
+        run: |
+          DRY="${{ github.event.inputs.dry_run }}"
+          URL="${{ secrets.SUPABASE_FUNCTION_URL }}"
+          if [ "$DRY" = "1" ]; then URL="${URL}?dry_run=1"; fi
+          echo "POST $URL"
+          curl -sS -X POST "$URL" \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            -w "\nHTTP %{http_code}\n" \
+            --fail-with-body
