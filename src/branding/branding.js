@@ -1,7 +1,7 @@
 // Branding por organización. En modo legacy (o si falta un campo en Johel) se
 // usan los valores actuales de Johel para que su apariencia NO cambie.
 // Para otros tenants el fallback es NEUTRO (nunca la marca de Johel).
-import { LOGO_IMG } from "../johel-training.assets";
+import { LOGO_IMG } from "../trainsync.assets";
 
 // Marca actual de Johel (migrada a organization_settings en 0003; acá como fallback).
 export const JOHEL_BRANDING = {

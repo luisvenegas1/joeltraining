@@ -1,4 +1,4 @@
-import { STYLES } from "../johel-training.styles";
+import { STYLES } from "../trainsync.styles";
 import { LEGAL_DOCS, LEGAL } from "./legalContent";
 import { LEGAL_PATHS } from "./legalRoute";
 

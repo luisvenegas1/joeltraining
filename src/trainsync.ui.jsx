@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { LOGO_IMG, TRAINER_PHOTO } from "./johel-training.assets";
-import { getEmbed, initials, verifyPassword } from "./johel-training.utils";
+import { LOGO_IMG, TRAINER_PHOTO } from "./trainsync.assets";
+import { getEmbed, initials, verifyPassword } from "./trainsync.utils";
 import { useBranding } from "./branding/BrandingContext";
 
 export function Logo({size=52}){const b=useBranding();return(<img src={b.logoUrl||LOGO_IMG} alt={b.displayName} style={{width:size,height:size,objectFit:"contain",borderRadius:8}}/>);}

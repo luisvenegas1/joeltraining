@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { STYLES } from "../johel-training.styles";
+import { STYLES } from "../trainsync.styles";
 import { usePlatformApp } from "./usePlatformApp";
 import { PlatformPanel, PLATFORM_SCOPE_CSS } from "./PlatformPanel";
 import { PasswordField } from "../auth/PasswordField";

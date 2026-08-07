@@ -13,7 +13,7 @@ carrera, y pasos que puedan bloquear producción. No asumas que algo está bien 
 
 ## Contexto del proyecto
 
-App de entrenamiento personal ("Johel Training"): React 19 + Vite 8 + JavaScript/JSX,
+App de entrenamiento personal ("TrainSync", by Tito Apps; Johel Training es uno de sus tenants): React 19 + Vite 8 + JavaScript/JSX,
 Supabase (Postgres) con `@supabase/supabase-js`, PWA. Navegación por estado local (se
 agregó React Router para resolución de tenant). La estoy convirtiendo en una
 plataforma **SaaS multi-tenant** (un solo repo, deployment y base Supabase), sin

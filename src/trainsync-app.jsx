@@ -8,13 +8,13 @@ import {
   getWorkoutSessions, upsertWorkoutSession, deleteWorkoutSession,
   getCatalogs, setCatalogCategory,
 } from "./db";
-import { CatalogContext, buildCatalogValue } from "./johel-training.catalogs";
-import { STYLES } from "./johel-training.styles";
-import { LoginPage, Sidebar, AppFooter } from "./johel-training.ui";
+import { CatalogContext, buildCatalogValue } from "./trainsync.catalogs";
+import { STYLES } from "./trainsync.styles";
+import { LoginPage, Sidebar, AppFooter } from "./trainsync.ui";
 import {
   AdminsPage, ClientsPage, Dashboard, ExercisesPage,
   MyProfilePage, MyRoutinePage, RoutinesPage,
-} from "./johel-training.features";
+} from "./trainsync.features";
 import { useTenant } from "./tenant/tenantContext";
 import { useSupabaseAuth } from "./auth/useSupabaseAuth";
 import { AuthLoading, SupabaseLogin, AuthErrorScreen, DemoBanner, SuspendedScreen, BillingScreen, SetNewPasswordScreen } from "./auth/AuthScreens";

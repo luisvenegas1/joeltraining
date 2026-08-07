@@ -3,7 +3,7 @@ import { useTenant } from "../tenant/tenantContext";
 import { usePermissions } from "../auth/PermissionsContext";
 import { PlanGate } from "../plans/PlanGate";
 import { getOrgReminderConfig, setOrgReminderConfig } from "../db";
-import { Toast } from "../johel-training.ui";
+import { Toast } from "../trainsync.ui";
 
 // Configuración de recordatorios de pago (feature Premium). El envío real lo hace
 // un proceso de cron en el backend; acá solo se configura por organización.

@@ -3,11 +3,11 @@ import {
   CHART_COLORS,
   MEASUREMENT_FIELDS,
   PAYMENT_PERIODS,
-} from "./johel-training.constants";
-import { useCatalogs, CATALOG_META } from "./johel-training.catalogs";
+} from "./trainsync.constants";
+import { useCatalogs, CATALOG_META } from "./trainsync.catalogs";
 import { usePermissions } from "./auth/PermissionsContext";
-import { addMonths, calcAge, daysLeft, fmtDate, genId, getPlanStatus, getPlanStatusFromEndDate, initials, planColor, useLS, hashPassword, generatePassword, useSaving, weekKey, weekLabel, monthKey, monthLabel, dayKey, fmtDuration, convertWeight } from "./johel-training.utils";
-import { Modal, PasswordInput, Toast, VideoModal, ExercisePicker, StretchPicker, Logo, SaveBtn } from "./johel-training.ui";
+import { addMonths, calcAge, daysLeft, fmtDate, genId, getPlanStatus, getPlanStatusFromEndDate, initials, planColor, useLS, hashPassword, generatePassword, useSaving, weekKey, weekLabel, monthKey, monthLabel, dayKey, fmtDuration, convertWeight } from "./trainsync.utils";
+import { Modal, PasswordInput, Toast, VideoModal, ExercisePicker, StretchPicker, Logo, SaveBtn } from "./trainsync.ui";
 import { updateOwnPassword, resetClientPassword, inviteClient } from "./auth/authClient";
 import { setClientReminder } from "./db";
 import { useTenant } from "./tenant/tenantContext";

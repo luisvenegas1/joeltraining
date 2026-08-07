@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useLS } from "../johel-training.utils";
+import { useLS } from "../trainsync.utils";
 import { PLAN_LABELS, PLAN_FEATURES, normalizePlan } from "../plans/entitlements";
 
 const FEATURE_LABELS = {

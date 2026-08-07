@@ -1,4 +1,4 @@
-import { useLS } from "../johel-training.utils";
+import { useLS } from "../trainsync.utils";
 
 // Tour de bienvenida para el entrenador: checklist de primeros pasos, no invasivo,
 // se puede cerrar y reabrir desde la Guía. Marca pasos hechos según datos reales.

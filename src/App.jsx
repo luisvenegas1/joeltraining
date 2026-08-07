@@ -1,7 +1,7 @@
-import JohelTrainingApp from './johel-training-app'
+import TrainSyncApp from './trainsync-app'
 
 function App() {
-  return <JohelTrainingApp />
+  return <TrainSyncApp />
 }
 
 export default App

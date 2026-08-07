@@ -6,7 +6,7 @@ import {
   PLAN_TYPES,
   PLAN_MODALITIES,
   PLAN_FORMATS,
-} from "./johel-training.constants";
+} from "./trainsync.constants";
 
 // Listas editables desde la app. `key` = nombre usado en el código,
 // `dbCat` = categoría en Supabase, `def` = valores por defecto (fallback).
